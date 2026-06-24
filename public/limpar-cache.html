@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Limpando cache - Barbearia Pro</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      body {
+        align-items: center;
+        background: #080808;
+        color: #f8f5ed;
+        display: flex;
+        font-family: Arial, Helvetica, sans-serif;
+        justify-content: center;
+        margin: 0;
+        min-height: 100vh;
+        padding: 24px;
+      }
+
+      main {
+        border: 1px solid #2a2a2a;
+        border-radius: 8px;
+        max-width: 440px;
+        padding: 24px;
+        text-align: center;
+      }
+
+      h1 {
+        font-size: 22px;
+        margin: 0 0 12px;
+      }
+
+      p {
+        color: #a8a29a;
+        line-height: 1.5;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Atualizando o Barbearia Pro</h1>
+      <p>Limpando cache antigo. Você será redirecionado em instantes.</p>
+    </main>
+    <script>
+      async function clearAppCache() {
+        if ("serviceWorker" in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map((registration) => registration.unregister()));
+        }
+
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((key) => caches.delete(key)));
+        }
+
+        window.location.replace("/barbearia-pro/?v=clean-cache");
+      }
+
+      clearAppCache().catch(() => {
+        window.location.replace("/barbearia-pro/?v=clean-cache");
+      });
+    </script>
+  </body>
+</html>
