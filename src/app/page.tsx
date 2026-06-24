@@ -132,7 +132,6 @@ export default function Home() {
   useEffect(() => {
     const saved = localStorage.getItem("barbearia-pro-data");
     if (saved) setData(JSON.parse(saved) as AppData);
-    setLogged(localStorage.getItem("barbearia-pro-session") === "active");
     setLastBackup(localStorage.getItem("barbearia-pro-last-backup") || "");
     setHydrated(true);
 
@@ -154,6 +153,8 @@ export default function Home() {
           setSyncStatus("Banco indisponível");
         }
       });
+    } else {
+      setLogged(localStorage.getItem("barbearia-pro-session") === "active");
     }
   }, []);
 
@@ -397,21 +398,33 @@ export default function Home() {
               if (client) {
                 const email = String(form.get("email") || "");
                 const password = String(form.get("password") || "");
-                setSyncStatus("Entrando...");
-                const { data: authData, error } = await client.auth.signInWithPassword({ email, password });
-                if (error || !authData.user) {
-                  setSyncStatus("Login inválido ou e-mail não confirmado");
+                if (!email || !password) {
+                  setSyncStatus("Preencha e-mail e senha.");
                   return;
                 }
-                setCurrentUserId(authData.user.id);
-                const remoteData = await loadRemoteData(client, authData.user.id);
-                if (remoteData.clients.length || remoteData.barbers.length || remoteData.products.length) {
-                  setData(remoteData);
+                setSyncStatus("Entrando...");
+                try {
+                  const { data: authData, error } = await client.auth.signInWithPassword({ email, password });
+                  if (error || !authData.user) {
+                    setSyncStatus(error?.message || "Login inválido ou e-mail não confirmado.");
+                    return;
+                  }
+                  setCurrentUserId(authData.user.id);
+                  const remoteData = await loadRemoteData(client, authData.user.id);
+                  if (remoteData.clients.length || remoteData.barbers.length || remoteData.products.length) {
+                    setData(remoteData);
+                  }
+                  setSyncStatus("Banco conectado");
+                  localStorage.setItem("barbearia-pro-session", "active");
+                  setLogged(true);
+                } catch {
+                  setSyncStatus("Não foi possível carregar seus dados.");
+                  return;
                 }
-                setSyncStatus("Banco conectado");
+              } else {
+                localStorage.setItem("barbearia-pro-session", "active");
+                setLogged(true);
               }
-              localStorage.setItem("barbearia-pro-session", "active");
-              setLogged(true);
             }}
           >
             <Field label="E-mail" name="email" type="email" placeholder="seuemail@exemplo.com" />
@@ -424,7 +437,11 @@ export default function Home() {
               <Users size={18} />
               Criar conta
             </a>
+            <a href={`${basePath}/esqueci-senha/`} className="block text-center text-sm text-muted transition hover:text-gold">
+              Esqueci minha senha
+            </a>
           </form>
+          <p className="mt-4 rounded-md border border-line bg-coal px-3 py-2 text-sm text-muted">{syncStatus}</p>
           <p className="mt-5 text-xs text-muted">
             {isSupabaseConfigured ? "Entre com uma conta confirmada por e-mail." : "Modo local ativo. Configure Supabase para autenticação real."}
           </p>
