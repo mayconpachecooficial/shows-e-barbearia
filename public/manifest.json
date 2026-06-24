@@ -2,13 +2,14 @@
   "name": "Barbearia Pro",
   "short_name": "Barbearia",
   "description": "Gestao completa de barbearia para financeiro, agenda, clientes e produtos.",
-  "start_url": "/",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "background_color": "#080808",
   "theme_color": "#080808",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

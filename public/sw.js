@@ -1,6 +1,6 @@
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open("barbearia-pro-v1").then((cache) => cache.addAll(["/", "/manifest.json", "/icon.svg"]))
+    caches.open("barbearia-pro-v1").then((cache) => cache.addAll(["./", "manifest.json", "icon.svg"]))
   );
 });
 

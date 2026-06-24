@@ -54,18 +54,14 @@ import type {
   Barber,
   Client,
   Expense,
-  ExpenseCategory,
   Product,
   ProductSale,
-  ServiceName,
   ServiceRecord,
 } from "@/lib/types";
 import { loadRemoteData, saveRemoteData } from "@/lib/database";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
-const services: ServiceName[] = ["Corte de cabelo", "Corte + barba", "Barba", "Sobrancelha", "Pezinho", "Outro"];
-const expenseCategories: ExpenseCategory[] = ["Aluguel", "Energia", "Agua", "Produtos", "Funcionarios", "Outras despesas"];
-const productCategories: Product["category"][] = ["Pomadas", "Shampoos", "Oleos para barba", "Outros produtos"];
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 const initialData: AppData = {
   clients: [
@@ -183,7 +179,7 @@ export default function Home() {
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      navigator.serviceWorker.register(`${basePath}/sw.js`).catch(() => undefined);
     }
   }, []);
 
@@ -233,11 +229,11 @@ export default function Home() {
       clientId: String(form.get("clientId")),
       barberId: String(form.get("barberId")),
       date: String(form.get("date") || todayKey()),
-      service: String(form.get("service")) as ServiceName,
+      service: String(form.get("service") || ""),
       customService: String(form.get("customService") || ""),
       value: Number(form.get("value") || 0),
     };
-    if (!record.clientId || !record.barberId || !record.value) return;
+    if (!record.clientId || !record.barberId || !record.service.trim() || !record.value) return;
     setData((current) => ({ ...current, services: [record, ...current.services] }));
   };
 
@@ -245,11 +241,11 @@ export default function Home() {
     const expense: Expense = {
       id: newId("e"),
       date: String(form.get("date") || todayKey()),
-      category: String(form.get("category")) as ExpenseCategory,
+      category: String(form.get("category") || ""),
       description: String(form.get("description") || ""),
       value: Number(form.get("value") || 0),
     };
-    if (!expense.value) return;
+    if (!expense.category.trim() || !expense.value) return;
     setData((current) => ({ ...current, expenses: [expense, ...current.expenses] }));
   };
 
@@ -257,13 +253,13 @@ export default function Home() {
     const product: Product = {
       id: newId("p"),
       name: String(form.get("name") || ""),
-      category: String(form.get("category")) as Product["category"],
+      category: String(form.get("category") || ""),
       stock: Number(form.get("stock") || 0),
       cost: Number(form.get("cost") || 0),
       price: Number(form.get("price") || 0),
       sold: 0,
     };
-    if (!product.name.trim()) return;
+    if (!product.name.trim() || !product.category.trim()) return;
     setData((current) => ({ ...current, products: [product, ...current.products] }));
   };
 
@@ -296,10 +292,10 @@ export default function Home() {
       barberId: String(form.get("barberId")),
       date: String(form.get("date") || todayKey()),
       time: String(form.get("time") || "09:00"),
-      service: String(form.get("service")) as ServiceName,
+      service: String(form.get("service") || ""),
       status: "Pendente",
     };
-    if (!appointment.clientId || !appointment.barberId) return;
+    if (!appointment.clientId || !appointment.barberId || !appointment.service.trim()) return;
     setData((current) => ({ ...current, appointments: [appointment, ...current.appointments] }));
   };
 
@@ -579,8 +575,7 @@ export default function Home() {
                     <Select label="Cliente" name="clientId" options={data.clients.map((client) => [client.id, client.name])} />
                     <Select label="Barbeiro" name="barberId" options={data.barbers.filter((barber) => barber.active).map((barber) => [barber.id, barber.name])} />
                     <Field label="Data" name="date" type="date" defaultValue={todayKey()} />
-                    <Select label="Serviço realizado" name="service" options={services.map((service) => [service, service])} />
-                    <Field label="Outro serviço personalizado" name="customService" />
+                    <Field label="Serviço realizado" name="service" placeholder="Ex.: Corte degradê, barba terapia, luzes" />
                     <Field label="Valor cobrado" name="value" type="number" />
                   </SmartForm>
                 </Panel>
@@ -594,8 +589,7 @@ export default function Home() {
                         <div>
                           <p className="font-semibold">{selectedClient(service.clientId)?.name ?? "-"}</p>
                           <p className="text-sm text-muted">
-                            {format(parseISO(service.date), "dd/MM/yyyy")} • {selectedBarber(service.barberId)?.name ?? "-"} •{" "}
-                            {service.service === "Outro" ? service.customService || "Outro" : service.service}
+                            {format(parseISO(service.date), "dd/MM/yyyy")} • {selectedBarber(service.barberId)?.name ?? "-"} • {service.service}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -633,7 +627,7 @@ export default function Home() {
               <Panel title="Saídas">
                 <SmartForm action={addExpense} submit="Registrar despesa">
                   <Field label="Data" name="date" type="date" defaultValue={todayKey()} />
-                  <Select label="Categoria" name="category" options={expenseCategories.map((category) => [category, category])} />
+                  <Field label="Categoria" name="category" placeholder="Ex.: Aluguel, produtos, taxa, limpeza" />
                   <Field label="Descrição" name="description" />
                   <Field label="Valor" name="value" type="number" />
                 </SmartForm>
@@ -742,7 +736,7 @@ export default function Home() {
                   <Select label="Barbeiro" name="barberId" options={data.barbers.filter((barber) => barber.active).map((barber) => [barber.id, barber.name])} />
                   <Field label="Data" name="date" type="date" defaultValue={todayKey()} />
                   <Field label="Horário" name="time" type="time" defaultValue="09:00" />
-                  <Select label="Serviço" name="service" options={services.map((service) => [service, service])} />
+                  <Field label="Serviço" name="service" placeholder="Ex.: Corte social, barba, pigmentação" />
                 </SmartForm>
               </Panel>
               <Panel title="Calendário de horários">
@@ -883,7 +877,7 @@ function ProductForm({ action }: { action: (form: FormData) => void }) {
     <Panel title="Cadastrar produto">
       <SmartForm action={action} submit="Salvar produto">
         <Field label="Nome" name="name" />
-        <Select label="Categoria" name="category" options={productCategories.map((category) => [category, category])} />
+        <Field label="Categoria" name="category" placeholder="Ex.: Pomadas, shampoos, óleos, máquinas" />
         <Field label="Estoque" name="stock" type="number" />
         <Field label="Custo" name="cost" type="number" />
         <Field label="Preço de venda" name="price" type="number" />

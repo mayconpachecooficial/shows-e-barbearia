@@ -1,11 +1,3 @@
-export type ServiceName =
-  | "Corte de cabelo"
-  | "Corte + barba"
-  | "Barba"
-  | "Sobrancelha"
-  | "Pezinho"
-  | "Outro";
-
 export type Client = {
   id: string;
   name: string;
@@ -29,7 +21,7 @@ export type Appointment = {
   barberId: string;
   date: string;
   time: string;
-  service: ServiceName;
+  service: string;
   status: "Confirmado" | "Pendente" | "Cancelado";
 };
 
@@ -38,17 +30,15 @@ export type ServiceRecord = {
   clientId: string;
   barberId: string;
   date: string;
-  service: ServiceName;
+  service: string;
   customService?: string;
   value: number;
 };
 
-export type ExpenseCategory = "Aluguel" | "Energia" | "Agua" | "Produtos" | "Funcionarios" | "Outras despesas";
-
 export type Expense = {
   id: string;
   date: string;
-  category: ExpenseCategory;
+  category: string;
   description: string;
   value: number;
 };
@@ -56,7 +46,7 @@ export type Expense = {
 export type Product = {
   id: string;
   name: string;
-  category: "Pomadas" | "Shampoos" | "Oleos para barba" | "Outros produtos";
+  category: string;
   stock: number;
   cost: number;
   price: number;

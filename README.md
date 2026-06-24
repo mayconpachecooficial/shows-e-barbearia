@@ -47,4 +47,22 @@ npm run build
 
 ## Publicação
 
-O projeto está pronto para GitHub público. Não publique `.env` nem `.env.local`; use variáveis de ambiente no provedor de deploy.
+O projeto está pronto para GitHub público e GitHub Pages.
+
+1. Crie um repositório público no GitHub.
+2. Envie o código para a branch `main`.
+3. No GitHub, abra `Settings > Secrets and variables > Actions`.
+4. Cadastre os secrets:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+```
+
+5. Abra `Settings > Pages`.
+6. Em `Build and deployment`, selecione `GitHub Actions`.
+7. Faça push na `main`.
+
+O workflow `.github/workflows/deploy.yml` gera o site estático em `out` e publica no GitHub Pages. Para repositórios comuns, o workflow usa automaticamente `NEXT_PUBLIC_BASE_PATH=/{nome-do-repositorio}` para o site abrir em `https://usuario.github.io/nome-do-repositorio/`.
+
+Se o repositório for do tipo `usuario.github.io`, remova a variável `NEXT_PUBLIC_BASE_PATH` do workflow para publicar na raiz do domínio.
