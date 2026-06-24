@@ -393,23 +393,14 @@ export default function Home() {
             onSubmit={async (event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
-              const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-              const authAction = submitter?.value || "signin";
               const client = supabase;
               if (client) {
                 const email = String(form.get("email") || "");
                 const password = String(form.get("password") || "");
-                setSyncStatus(authAction === "signup" ? "Criando conta..." : "Entrando...");
-                const { data: authData, error } =
-                  authAction === "signup"
-                    ? await client.auth.signUp({ email, password })
-                    : await client.auth.signInWithPassword({ email, password });
+                setSyncStatus("Entrando...");
+                const { data: authData, error } = await client.auth.signInWithPassword({ email, password });
                 if (error || !authData.user) {
-                  setSyncStatus(authAction === "signup" ? "Não foi possível criar a conta" : "Login inválido no Supabase");
-                  return;
-                }
-                if (!authData.session) {
-                  setSyncStatus("Conta criada. Confirme o e-mail para entrar.");
+                  setSyncStatus("Login inválido ou e-mail não confirmado");
                   return;
                 }
                 setCurrentUserId(authData.user.id);
@@ -425,17 +416,17 @@ export default function Home() {
           >
             <Field label="E-mail" name="email" type="email" placeholder="seuemail@exemplo.com" />
             <Field label="Senha" name="password" type="password" placeholder="Digite sua senha" />
-            <button name="authAction" value="signin" className="flex h-12 w-full items-center justify-center gap-2 rounded-md bg-gold px-4 font-semibold text-coal transition hover:bg-gold-soft">
+            <button className="flex h-12 w-full items-center justify-center gap-2 rounded-md bg-gold px-4 font-semibold text-coal transition hover:bg-gold-soft">
               <LockKeyhole size={18} />
               Entrar
             </button>
-            <button name="authAction" value="signup" className="flex h-12 w-full items-center justify-center gap-2 rounded-md border border-gold/50 bg-gold/10 px-4 font-semibold text-gold transition hover:bg-gold/15">
+            <a href={`${basePath}/cadastro/`} className="flex h-12 w-full items-center justify-center gap-2 rounded-md border border-gold/50 bg-gold/10 px-4 font-semibold text-gold transition hover:bg-gold/15">
               <Users size={18} />
               Criar conta
-            </button>
+            </a>
           </form>
           <p className="mt-5 text-xs text-muted">
-            Login pronto para Supabase Auth. Configure `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` para conectar o banco.
+            {isSupabaseConfigured ? "Entre com uma conta confirmada por e-mail." : "Modo local ativo. Configure Supabase para autenticação real."}
           </p>
         </section>
       </main>
