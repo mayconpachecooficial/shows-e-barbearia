@@ -4,7 +4,7 @@ import "./globals.css";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 export const metadata: Metadata = {
-  title: "Barbearia Pro",
+  title: "BRAVOS BARBEARIA",
   description: "Sistema premium para gerenciamento financeiro, agenda, clientes e produtos de barbearia.",
   manifest: `${basePath}/manifest.json`,
 };

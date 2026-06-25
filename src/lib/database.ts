@@ -2,16 +2,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppData, Appointment, Barber, Client, Expense, Product, ProductSale, ServiceRecord } from "./types";
 
 type Row = Record<string, string | number | boolean | null>;
+type SharedUserId = string | null;
+type SupabaseResult = { data: Row[] | null; error: Error | null };
+type SupabaseMutationResult = { error: Error | null };
 
-export async function loadRemoteData(supabase: SupabaseClient, userId: string): Promise<AppData> {
+export async function loadRemoteData(supabase: SupabaseClient, userId: SharedUserId): Promise<AppData> {
   const [clients, barbers, services, expenses, products, productSales, appointments] = await Promise.all([
-    supabase.from("clients").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
-    supabase.from("barbers").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
-    supabase.from("service_records").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
-    supabase.from("expenses").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
-    supabase.from("products").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
-    supabase.from("product_sales").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
-    supabase.from("appointments").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+    selectRows(supabase, "clients", userId),
+    selectRows(supabase, "barbers", userId),
+    selectRows(supabase, "service_records", userId),
+    selectRows(supabase, "expenses", userId),
+    selectRows(supabase, "products", userId),
+    selectRows(supabase, "product_sales", userId),
+    selectRows(supabase, "appointments", userId),
   ]);
 
   const error = clients.error || barbers.error || services.error || expenses.error || products.error || productSales.error || appointments.error;
@@ -28,10 +31,10 @@ export async function loadRemoteData(supabase: SupabaseClient, userId: string): 
   };
 }
 
-export async function saveRemoteData(supabase: SupabaseClient, userId: string, data: AppData) {
+export async function saveRemoteData(supabase: SupabaseClient, userId: SharedUserId, data: AppData) {
   const tables = ["appointments", "product_sales", "service_records", "expenses", "products", "barbers", "clients"];
   for (const table of tables) {
-    const { error } = await supabase.from(table).delete().eq("user_id", userId);
+    const { error } = await deleteRows(supabase, table, userId);
     if (error) throw error;
   }
 
@@ -42,6 +45,32 @@ export async function saveRemoteData(supabase: SupabaseClient, userId: string, d
   await insertRows(supabase, "expenses", data.expenses.map((expense) => fromExpense(expense, userId)));
   await insertRows(supabase, "product_sales", data.productSales.map((sale) => fromProductSale(sale, userId)));
   await insertRows(supabase, "appointments", data.appointments.map((appointment) => fromAppointment(appointment, userId)));
+}
+
+type SupabaseQuery = {
+  eq: (column: string, value: string) => SupabaseQuery;
+  is: (column: string, value: null) => SupabaseQuery;
+  order: (column: string, options?: { ascending?: boolean }) => SupabaseQuery;
+};
+
+function selectTable(supabase: SupabaseClient, table: string) {
+  return supabase.from(table).select("*") as unknown as SupabaseQuery;
+}
+
+function deleteTable(supabase: SupabaseClient, table: string) {
+  return supabase.from(table).delete() as unknown as SupabaseQuery;
+}
+
+function filterByUser<T extends SupabaseQuery>(query: T, userId: SharedUserId) {
+  return userId ? query.eq("user_id", userId) : query.is("user_id", null);
+}
+
+async function selectRows(supabase: SupabaseClient, table: string, userId: SharedUserId) {
+  return await filterByUser(selectTable(supabase, table), userId).order("created_at", { ascending: false }) as unknown as SupabaseResult;
+}
+
+async function deleteRows(supabase: SupabaseClient, table: string, userId: SharedUserId) {
+  return await filterByUser(deleteTable(supabase, table), userId) as unknown as SupabaseMutationResult;
 }
 
 async function insertRows(supabase: SupabaseClient, table: string, rows: Row[]) {
@@ -122,15 +151,15 @@ function toAppointment(row: Row): Appointment {
   };
 }
 
-function fromClient(client: Client, userId: string): Row {
+function fromClient(client: Client, userId: SharedUserId): Row {
   return { id: client.id, user_id: userId, name: client.name, phone: client.phone, birth_date: client.birthDate || null, notes: client.notes };
 }
 
-function fromBarber(barber: Barber, userId: string): Row {
+function fromBarber(barber: Barber, userId: SharedUserId): Row {
   return { id: barber.id, user_id: userId, name: barber.name, email: barber.email, commission_rate: barber.commissionRate, role: barber.role, active: barber.active };
 }
 
-function fromServiceRecord(service: ServiceRecord, userId: string): Row {
+function fromServiceRecord(service: ServiceRecord, userId: SharedUserId): Row {
   return {
     id: service.id,
     user_id: userId,
@@ -143,15 +172,15 @@ function fromServiceRecord(service: ServiceRecord, userId: string): Row {
   };
 }
 
-function fromExpense(expense: Expense, userId: string): Row {
+function fromExpense(expense: Expense, userId: SharedUserId): Row {
   return { id: expense.id, user_id: userId, expense_date: expense.date, category: expense.category, description: expense.description, value: expense.value };
 }
 
-function fromProduct(product: Product, userId: string): Row {
+function fromProduct(product: Product, userId: SharedUserId): Row {
   return { id: product.id, user_id: userId, name: product.name, category: product.category, stock: product.stock, cost: product.cost, price: product.price, sold: product.sold };
 }
 
-function fromProductSale(sale: ProductSale, userId: string): Row {
+function fromProductSale(sale: ProductSale, userId: SharedUserId): Row {
   return {
     id: sale.id,
     user_id: userId,
@@ -163,7 +192,7 @@ function fromProductSale(sale: ProductSale, userId: string): Row {
   };
 }
 
-function fromAppointment(appointment: Appointment, userId: string): Row {
+function fromAppointment(appointment: Appointment, userId: SharedUserId): Row {
   return {
     id: appointment.id,
     user_id: userId,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -57,8 +57,19 @@ import type {
   ProductSale,
   ServiceRecord,
 } from "@/lib/types";
+import { loadRemoteData, saveRemoteData } from "@/lib/database";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const sharedUserId = null;
+const hasData = (items: AppData) =>
+  items.clients.length ||
+  items.barbers.length ||
+  items.services.length ||
+  items.expenses.length ||
+  items.products.length ||
+  items.productSales.length ||
+  items.appointments.length;
 
 const initialData: AppData = {
   clients: [
@@ -121,12 +132,41 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [range, setRange] = useState({ start: format(subDays(new Date(), 7), "yyyy-MM-dd"), end: todayKey() });
   const [lastBackup, setLastBackup] = useState("");
-  const [syncStatus] = useState("Entrada direta ativa");
+  const [syncStatus, setSyncStatus] = useState(isSupabaseConfigured ? "Conectando ao banco..." : "Modo local ativo");
+  const [notice, setNotice] = useState("");
+  const hydratedRef = useRef(false);
+  const savingRef = useRef(false);
+  const lastLocalChangeRef = useRef(0);
 
   useEffect(() => {
     const saved = localStorage.getItem("barbearia-pro-data");
     if (saved) setData(JSON.parse(saved) as AppData);
     setLastBackup(localStorage.getItem("barbearia-pro-last-backup") || "");
+
+    const client = supabase;
+    if (!client) {
+      hydratedRef.current = true;
+      return;
+    }
+
+    setSyncStatus("Carregando dados do banco...");
+    loadRemoteData(client, sharedUserId)
+      .then(async (remoteData) => {
+        if (hasData(remoteData)) {
+          setData(remoteData);
+          setSyncStatus("Banco conectado");
+          return;
+        }
+
+        await saveRemoteData(client, sharedUserId, initialData);
+        setSyncStatus("Banco iniciado");
+      })
+      .catch(() => {
+        setSyncStatus("Banco indisponível, salvando local");
+      })
+      .finally(() => {
+        hydratedRef.current = true;
+      });
   }, []);
 
   useEffect(() => {
@@ -135,7 +175,36 @@ export default function Home() {
     localStorage.setItem("barbearia-pro-backup", JSON.stringify(backup));
     localStorage.setItem("barbearia-pro-last-backup", backup.createdAt);
     setLastBackup(backup.createdAt);
+
+    const client = supabase;
+    if (!hydratedRef.current || !client) return;
+    lastLocalChangeRef.current = Date.now();
+    const timeout = window.setTimeout(() => {
+      savingRef.current = true;
+      setSyncStatus("Salvando no banco...");
+      saveRemoteData(client, sharedUserId, data)
+        .then(() => setSyncStatus("Banco sincronizado"))
+        .catch(() => setSyncStatus("Falha ao salvar no banco"))
+        .finally(() => {
+          savingRef.current = false;
+        });
+    }, 700);
+    return () => window.clearTimeout(timeout);
   }, [data]);
+
+  useEffect(() => {
+    const client = supabase;
+    if (!client) return;
+    const interval = window.setInterval(() => {
+      if (savingRef.current || Date.now() - lastLocalChangeRef.current < 4000) return;
+      loadRemoteData(client, sharedUserId)
+        .then((remoteData) => {
+          if (hasData(remoteData)) setData(remoteData);
+        })
+        .catch(() => undefined);
+    }, 20000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -227,7 +296,12 @@ export default function Home() {
     const quantity = Number(form.get("quantity") || 1);
     const productId = String(form.get("productId"));
     const product = selectedProduct(productId);
-    if (!product || quantity <= 0) return;
+    if (!product || quantity <= 0) return false;
+    if (quantity > product.stock) {
+      setNotice(`Estoque insuficiente para ${product.name}. Disponível: ${product.stock} un.`);
+      return false;
+    }
+    setNotice("");
     const sale: ProductSale = {
       id: newId("ps"),
       productId,
@@ -240,7 +314,7 @@ export default function Home() {
       ...current,
       productSales: [sale, ...current.productSales],
       products: current.products.map((item) =>
-        item.id === productId ? { ...item, stock: Math.max(0, item.stock - quantity), sold: item.sold + quantity } : item,
+        item.id === productId ? { ...item, stock: item.stock - quantity, sold: item.sold + quantity } : item,
       ),
     }));
   };
@@ -317,7 +391,7 @@ export default function Home() {
     const { jsPDF } = await import("jspdf");
     const doc = new jsPDF();
     doc.setFontSize(18);
-    doc.text("Relatório Barbearia Pro", 14, 18);
+    doc.text("Relatório BRAVOS BARBEARIA", 14, 18);
     doc.setFontSize(11);
     doc.text(`Gerado em ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, 28);
     const lines = [
@@ -343,7 +417,7 @@ export default function Home() {
             <Scissors size={24} />
           </div>
           <div>
-            <h1 className="text-xl font-semibold">Barbearia Pro</h1>
+            <h1 className="text-xl font-semibold">BRAVOS BARBEARIA</h1>
             <p className="text-xs text-muted">{syncStatus}</p>
           </div>
         </div>
@@ -387,6 +461,14 @@ export default function Home() {
         </header>
 
         <div className="space-y-6 px-4 py-6 lg:px-8">
+          {notice ? (
+            <div className="no-print flex items-center justify-between gap-3 rounded-md border border-gold/40 bg-gold/10 px-4 py-3 text-sm text-ivory">
+              <span>{notice}</span>
+              <button onClick={() => setNotice("")} className="text-gold" title="Fechar aviso">
+                <XCircle size={18} />
+              </button>
+            </div>
+          ) : null}
           {tab === "dashboard" && (
             <>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -699,14 +781,14 @@ export default function Home() {
   );
 }
 
-function SmartForm({ action, submit, children }: { action: (form: FormData) => void; submit: string; children: React.ReactNode }) {
+function SmartForm({ action, submit, children }: { action: (form: FormData) => boolean | void; submit: string; children: React.ReactNode }) {
   return (
     <form
       className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
-        action(new FormData(event.currentTarget));
-        event.currentTarget.reset();
+        const result = action(new FormData(event.currentTarget));
+        if (result !== false) event.currentTarget.reset();
       }}
     >
       {children}
