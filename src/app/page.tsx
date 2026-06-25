@@ -138,6 +138,15 @@ const promptNumber = (label: string, current: number) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const promptChoice = (label: string, options: Array<{ id: string; text: string }>, currentId: string) => {
+  const currentIndex = Math.max(0, options.findIndex((option) => option.id === currentId));
+  const list = options.map((option, index) => `${index + 1} - ${option.text}`).join("\n");
+  const value = window.prompt(`${label}\n${list}`, String(currentIndex + 1));
+  if (value === null) return null;
+  const index = Number(value) - 1;
+  return options[index]?.id ?? null;
+};
+
 export default function Home() {
   const [data, setData] = useState<AppData>(initialData);
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -409,6 +418,10 @@ export default function Home() {
   };
 
   const editService = (service: ServiceRecord) => {
+    const clientId = promptChoice("Cliente", data.clients.map((client) => ({ id: client.id, text: client.name })), service.clientId);
+    if (clientId === null) return;
+    const barberId = promptChoice("Barbeiro", data.barbers.map((barber) => ({ id: barber.id, text: barber.name })), service.barberId);
+    if (barberId === null) return;
     const date = promptText("Data do atendimento (AAAA-MM-DD)", service.date);
     if (date === null || !date) return;
     const serviceName = promptText("Serviço realizado", service.service);
@@ -417,7 +430,7 @@ export default function Home() {
     if (value === null || value <= 0) return;
     setData((current) => ({
       ...current,
-      services: current.services.map((item) => (item.id === service.id ? { ...item, date, service: serviceName, value } : item)),
+      services: current.services.map((item) => (item.id === service.id ? { ...item, clientId, barberId, date, service: serviceName, value } : item)),
     }));
   };
 
@@ -464,6 +477,10 @@ export default function Home() {
   };
 
   const editAppointment = (appointment: Appointment) => {
+    const clientId = promptChoice("Cliente", data.clients.map((client) => ({ id: client.id, text: client.name })), appointment.clientId);
+    if (clientId === null) return;
+    const barberId = promptChoice("Barbeiro", data.barbers.map((barber) => ({ id: barber.id, text: barber.name })), appointment.barberId);
+    if (barberId === null) return;
     const date = promptText("Data do agendamento (AAAA-MM-DD)", appointment.date);
     if (date === null || !date) return;
     const time = promptText("Horário (HH:MM)", appointment.time);
@@ -472,7 +489,7 @@ export default function Home() {
     if (service === null || !service) return;
     setData((current) => ({
       ...current,
-      appointments: current.appointments.map((item) => (item.id === appointment.id ? { ...item, date, time, service } : item)),
+      appointments: current.appointments.map((item) => (item.id === appointment.id ? { ...item, clientId, barberId, date, time, service } : item)),
     }));
   };
 
@@ -483,11 +500,9 @@ export default function Home() {
     if (email === null) return;
     const commissionRate = promptNumber("Comissão (%)", barber.commissionRate);
     if (commissionRate === null || commissionRate < 0) return;
-    const role = promptText("Permissão", barber.role) as Barber["role"] | null;
-    if (role === null || !role) return;
     setData((current) => ({
       ...current,
-      barbers: current.barbers.map((item) => (item.id === barber.id ? { ...item, name, email, commissionRate, role } : item)),
+      barbers: current.barbers.map((item) => (item.id === barber.id ? { ...item, name, email, commissionRate } : item)),
     }));
   };
 
