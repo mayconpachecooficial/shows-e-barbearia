@@ -948,7 +948,7 @@ export default function Home() {
                   <Select label="Produto" name="productId" options={data.products.map((product) => [product.id, product.name])} />
                   <Select label="Cliente" name="clientId" options={[["", "Venda avulsa"], ...data.clients.map((client) => [client.id, client.name])]} />
                   <DateField label="Data" name="date" defaultValue={todayKey()} />
-                  <DecimalField label="Quantidade" name="quantity" defaultValue="1" />
+                  <DecimalField label="Quantidade" name="quantity" defaultValue="1" placeholder="Ex.: 10" />
                   <MoneyField label="Preço unitário" name="unitPrice" />
                 </SmartForm>
                 <div className="mt-5 space-y-2">
@@ -1480,7 +1480,7 @@ function ProductForm({ action }: { action: (form: FormData) => boolean | void })
       <SmartForm action={action} submit="Salvar produto">
         <Field label="Nome" name="name" />
         <Field label="Categoria" name="category" placeholder="Ex.: Pomadas, shampoos, óleos, máquinas" />
-        <DecimalField label="Estoque" name="stock" placeholder="Ex.: 10" />
+        <DecimalField label="Estoque" name="stock" defaultValue="1" placeholder="Ex.: 10" />
         <MoneyField label="Custo total do estoque" name="totalCost" placeholder="Ex.: 300,00" />
         <MoneyField label="Preço de venda" name="price" />
       </SmartForm>
