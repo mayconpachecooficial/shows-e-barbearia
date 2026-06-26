@@ -266,6 +266,29 @@ const parseDecimal = (value: FormDataEntryValue | string | number | null | undef
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const onlyDigits = (value: FormDataEntryValue | string | number | null | undefined) => String(value ?? "").replace(/\D/g, "");
+
+const formatPhone = (value: FormDataEntryValue | string | number | null | undefined) => {
+  const digits = onlyDigits(value).slice(0, 11);
+  if (!digits) return "";
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 3) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2, 3)} ${digits.slice(3)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 3)} ${digits.slice(3, 7)}-${digits.slice(7)}`;
+};
+
+const formatMoney = (value: FormDataEntryValue | string | number | null | undefined) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(parseDecimal(raw));
+};
+
+const formatMoneyTyping = (value: FormDataEntryValue | string | number | null | undefined) => {
+  const digits = onlyDigits(value).slice(0, 12);
+  if (!digits) return "";
+  return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(digits) / 100);
+};
+
 export default function Home() {
   const [data, setData] = useState<AppData>(initialData);
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -828,14 +851,14 @@ export default function Home() {
               <Panel title="Cadastrar cliente">
                 <SmartForm action={addClient} submit="Salvar cliente">
                   <Field label="Nome completo" name="name" />
-                  <Field label="Telefone" name="phone" />
+                  <PhoneField label="Telefone" name="phone" />
                   <DateField label="Data de nascimento" name="birthDate" defaultValue="" />
                   <Textarea label="Observações" name="notes" />
                 </SmartForm>
                 {editingClient ? (
                   <InlineForm key={editingClient.id} title="Editar cliente" submit="Salvar alterações" onCancel={() => setEditingClientId(null)} action={(form) => updateClient(editingClient, form)}>
                     <Field label="Nome completo" name="name" defaultValue={editingClient.name} />
-                    <Field label="Telefone" name="phone" defaultValue={editingClient.phone} />
+                    <PhoneField label="Telefone" name="phone" defaultValue={editingClient.phone} />
                     <DateField label="Data de nascimento" name="birthDate" defaultValue={editingClient.birthDate} />
                     <Textarea label="Observações" name="notes" defaultValue={editingClient.notes} />
                   </InlineForm>
@@ -880,7 +903,7 @@ export default function Home() {
                   <Select label="Barbeiro" name="barberId" options={data.barbers.filter((barber) => barber.active).map((barber) => [barber.id, barber.name])} />
                   <DateField label="Data" name="date" defaultValue={todayKey()} />
                   <Field label="Serviço realizado" name="service" placeholder="Ex.: Corte degradê, barba terapia, luzes" />
-                  <DecimalField label="Valor cobrado" name="value" />
+                  <MoneyField label="Valor cobrado" name="value" />
                 </SmartForm>
                 {editingService ? (
                   <InlineForm key={editingService.id} title="Editar atendimento" submit="Salvar atendimento" onCancel={() => setEditingServiceId(null)} action={(form) => updateService(editingService, form)}>
@@ -888,7 +911,7 @@ export default function Home() {
                     <Select label="Barbeiro" name="barberId" defaultValue={editingService.barberId} options={data.barbers.filter((barber) => barber.active).map((barber) => [barber.id, barber.name])} />
                     <DateField label="Data" name="date" defaultValue={editingService.date} />
                     <Field label="Serviço realizado" name="service" defaultValue={editingService.service} />
-                    <DecimalField label="Valor cobrado" name="value" defaultValue={String(editingService.value).replace(".", ",")} />
+                    <MoneyField label="Valor cobrado" name="value" defaultValue={editingService.value} />
                   </InlineForm>
                 ) : null}
               </Panel>
@@ -928,7 +951,7 @@ export default function Home() {
                   <Select label="Cliente" name="clientId" options={[["", "Venda avulsa"], ...data.clients.map((client) => [client.id, client.name])]} />
                   <DateField label="Data" name="date" defaultValue={todayKey()} />
                   <DecimalField label="Quantidade" name="quantity" defaultValue="1" />
-                  <DecimalField label="Preço unitário" name="unitPrice" />
+                  <MoneyField label="Preço unitário" name="unitPrice" />
                 </SmartForm>
                 <div className="mt-5 space-y-2">
                   <Row label="Serviços no mês" value={brl.format(serviceRevenue(data.services.filter((item) => inMonth(item.date))))} />
@@ -940,14 +963,14 @@ export default function Home() {
                   <DateField label="Data" name="date" defaultValue={todayKey()} />
                   <Field label="Categoria" name="category" placeholder="Ex.: Aluguel, produtos, taxa, limpeza" />
                   <Field label="Descrição" name="description" />
-                  <DecimalField label="Valor" name="value" />
+                  <MoneyField label="Valor" name="value" />
                 </SmartForm>
                 {editingExpense ? (
                   <InlineForm key={editingExpense.id} title="Editar despesa" submit="Salvar despesa" onCancel={() => setEditingExpenseId(null)} action={(form) => updateExpense(editingExpense, form)}>
                     <DateField label="Data" name="date" defaultValue={editingExpense.date} />
                     <Field label="Categoria" name="category" defaultValue={editingExpense.category} />
                     <Field label="Descrição" name="description" defaultValue={editingExpense.description} />
-                    <DecimalField label="Valor" name="value" defaultValue={String(editingExpense.value).replace(".", ",")} />
+                    <MoneyField label="Valor" name="value" defaultValue={editingExpense.value} />
                   </InlineForm>
                 ) : null}
                 <div className="mt-5 space-y-2">
@@ -1047,8 +1070,8 @@ export default function Home() {
                     <Field label="Nome" name="name" defaultValue={editingProduct.name} />
                     <Field label="Categoria" name="category" defaultValue={editingProduct.category} />
                     <DecimalField label="Estoque" name="stock" defaultValue={String(editingProduct.stock).replace(".", ",")} />
-                    <DecimalField label="Custo" name="cost" defaultValue={String(editingProduct.cost).replace(".", ",")} />
-                    <DecimalField label="Preço de venda" name="price" defaultValue={String(editingProduct.price).replace(".", ",")} />
+                    <MoneyField label="Custo" name="cost" defaultValue={editingProduct.cost} />
+                    <MoneyField label="Preço de venda" name="price" defaultValue={editingProduct.price} />
                   </InlineForm>
                 ) : null}
                 {stockProduct ? (
@@ -1249,6 +1272,41 @@ function Field(props: React.InputHTMLAttributes<HTMLInputElement> & { label: str
   );
 }
 
+function PhoneField(props: React.InputHTMLAttributes<HTMLInputElement> & { label: string; name: string }) {
+  const { label, defaultValue, ...input } = props;
+  const [phone, setPhone] = useState(formatPhone(defaultValue as string | number | null | undefined));
+  const fieldRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setPhone(formatPhone(defaultValue as string | number | null | undefined));
+  }, [defaultValue]);
+
+  useEffect(() => {
+    const form = fieldRef.current?.form;
+    if (!form) return;
+    const reset = () => setPhone(formatPhone(defaultValue as string | number | null | undefined));
+    form.addEventListener("reset", reset);
+    return () => form.removeEventListener("reset", reset);
+  }, [defaultValue]);
+
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm text-muted">{label}</span>
+      <input
+        {...input}
+        ref={fieldRef}
+        type="tel"
+        inputMode="numeric"
+        maxLength={16}
+        value={phone}
+        onChange={(event) => setPhone(formatPhone(event.target.value))}
+        placeholder={input.placeholder ?? "(00) 0 0000-0000"}
+        className="h-11 w-full rounded-md border border-line bg-coal px-3 text-ivory outline-none transition placeholder:text-muted focus:border-gold"
+      />
+    </label>
+  );
+}
+
 function DecimalField(props: React.InputHTMLAttributes<HTMLInputElement> & { label: string; name: string }) {
   const { label, ...input } = props;
   return (
@@ -1258,6 +1316,40 @@ function DecimalField(props: React.InputHTMLAttributes<HTMLInputElement> & { lab
         {...input}
         type="text"
         inputMode="decimal"
+        placeholder={input.placeholder ?? "Ex.: 99,90"}
+        className="h-11 w-full rounded-md border border-line bg-coal px-3 text-ivory outline-none transition placeholder:text-muted focus:border-gold"
+      />
+    </label>
+  );
+}
+
+function MoneyField(props: React.InputHTMLAttributes<HTMLInputElement> & { label: string; name: string }) {
+  const { label, defaultValue, ...input } = props;
+  const [money, setMoney] = useState(formatMoney(defaultValue as string | number | null | undefined));
+  const fieldRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMoney(formatMoney(defaultValue as string | number | null | undefined));
+  }, [defaultValue]);
+
+  useEffect(() => {
+    const form = fieldRef.current?.form;
+    if (!form) return;
+    const reset = () => setMoney(formatMoney(defaultValue as string | number | null | undefined));
+    form.addEventListener("reset", reset);
+    return () => form.removeEventListener("reset", reset);
+  }, [defaultValue]);
+
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm text-muted">{label}</span>
+      <input
+        {...input}
+        ref={fieldRef}
+        type="text"
+        inputMode="numeric"
+        value={money}
+        onChange={(event) => setMoney(formatMoneyTyping(event.target.value))}
         placeholder={input.placeholder ?? "Ex.: 99,90"}
         className="h-11 w-full rounded-md border border-line bg-coal px-3 text-ivory outline-none transition placeholder:text-muted focus:border-gold"
       />
@@ -1347,8 +1439,8 @@ function ProductForm({ action }: { action: (form: FormData) => void }) {
         <Field label="Nome" name="name" />
         <Field label="Categoria" name="category" placeholder="Ex.: Pomadas, shampoos, óleos, máquinas" />
         <DecimalField label="Estoque" name="stock" placeholder="Ex.: 10" />
-        <DecimalField label="Custo" name="cost" />
-        <DecimalField label="Preço de venda" name="price" />
+        <MoneyField label="Custo" name="cost" />
+        <MoneyField label="Preço de venda" name="price" />
       </SmartForm>
     </Panel>
   );
