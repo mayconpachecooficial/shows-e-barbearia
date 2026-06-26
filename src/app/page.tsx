@@ -529,16 +529,18 @@ export default function Home() {
   };
 
   const addProduct = (form: FormData) => {
+    const stock = parseDecimal(form.get("stock"));
+    const totalCost = parseDecimal(form.get("totalCost"));
     const product: Product = {
       id: newId("p"),
       name: String(form.get("name") || ""),
       category: String(form.get("category") || ""),
-      stock: parseDecimal(form.get("stock")),
-      cost: parseDecimal(form.get("cost")),
+      stock,
+      cost: stock > 0 ? totalCost / stock : 0,
       price: parseDecimal(form.get("price")),
       sold: 0,
     };
-    if (!product.name.trim() || !product.category.trim()) return;
+    if (!product.name.trim() || !product.category.trim() || stock < 0 || totalCost < 0 || product.price < 0) return false;
     setData((current) => ({ ...current, products: [product, ...current.products] }));
   };
 
@@ -882,9 +884,7 @@ export default function Home() {
                             <button onClick={() => setEditingClientId(client.id)} className="icon-button" title="Editar cliente">
                               <Pencil size={17} />
                             </button>
-                            <button onClick={() => deleteClient(client.id)} className="icon-button" title="Excluir cliente">
-                              <Trash2 size={17} />
-                            </button>
+                            <DeleteButton title="Excluir cliente" onConfirm={() => deleteClient(client.id)} />
                           </div>
                         </div>
                       </Card>
@@ -931,9 +931,7 @@ export default function Home() {
                           <button onClick={() => setEditingServiceId(service.id)} className="icon-button" title="Editar atendimento">
                             <Pencil size={17} />
                           </button>
-                          <button onClick={() => deleteById("services", service.id)} className="icon-button" title="Excluir atendimento">
-                            <Trash2 size={17} />
-                          </button>
+                          <DeleteButton title="Excluir atendimento" onConfirm={() => deleteById("services", service.id)} />
                         </div>
                       </div>
                     </Card>
@@ -991,9 +989,7 @@ export default function Home() {
                           <button onClick={() => setEditingExpenseId(expense.id)} className="icon-button" title="Editar despesa">
                             <Pencil size={17} />
                           </button>
-                          <button onClick={() => deleteById("expenses", expense.id)} className="icon-button" title="Excluir despesa">
-                            <Trash2 size={17} />
-                          </button>
+                          <DeleteButton title="Excluir despesa" onConfirm={() => deleteById("expenses", expense.id)} />
                         </div>
                       </div>
                     </Card>
@@ -1124,16 +1120,32 @@ export default function Home() {
                             <button onClick={() => setEditingAppointmentId(appointment.id)} className="icon-button" title="Editar agendamento">
                               <Pencil size={17} />
                             </button>
-                            <button onClick={() => updateAppointmentStatus(appointment.id, "Confirmado")} className="icon-button" title="Confirmar">
+                            <button
+                              onClick={() => updateAppointmentStatus(appointment.id, appointment.status === "Confirmado" ? "Pendente" : "Confirmado")}
+                              className={`icon-button ${appointment.status === "Confirmado" ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-300" : ""}`}
+                              title={appointment.status === "Confirmado" ? "Voltar para pendente" : "Confirmar"}
+                            >
                               <CheckCircle2 size={17} />
                             </button>
-                            <button onClick={() => updateAppointmentStatus(appointment.id, "Cancelado")} className="icon-button" title="Cancelar">
+                            <button
+                              onClick={() => updateAppointmentStatus(appointment.id, appointment.status === "Cancelado" ? "Pendente" : "Cancelado")}
+                              className={`icon-button ${appointment.status === "Cancelado" ? "border-red-500/60 bg-red-500/15 text-red-300" : ""}`}
+                              title={appointment.status === "Cancelado" ? "Voltar para pendente" : "Cancelar"}
+                            >
                               <XCircle size={17} />
                             </button>
-                            <button onClick={() => deleteById("appointments", appointment.id)} className="icon-button" title="Excluir agendamento">
-                              <Trash2 size={17} />
-                            </button>
-                            <span className="rounded bg-ivory/10 px-3 py-2 text-xs text-muted">{appointment.status}</span>
+                            <DeleteButton title="Excluir agendamento" onConfirm={() => deleteById("appointments", appointment.id)} />
+                            <span
+                              className={`rounded px-3 py-2 text-xs ${
+                                appointment.status === "Confirmado"
+                                  ? "bg-emerald-500/15 text-emerald-300"
+                                  : appointment.status === "Cancelado"
+                                    ? "bg-red-500/15 text-red-300"
+                                    : "bg-ivory/10 text-muted"
+                              }`}
+                            >
+                              {appointment.status}
+                            </span>
                           </div>
                         </div>
                       </Card>
@@ -1185,9 +1197,7 @@ export default function Home() {
                             <button onClick={() => setEditingBarberId(barber.id)} className="icon-button" title="Editar barbeiro">
                               <Pencil size={17} />
                             </button>
-                            <button onClick={() => deleteBarber(barber.id)} className="icon-button" title="Excluir barbeiro">
-                              <Trash2 size={17} />
-                            </button>
+                            <DeleteButton title="Excluir barbeiro" onConfirm={() => deleteBarber(barber.id)} />
                           </div>
                         </div>
                       </Card>
@@ -1256,6 +1266,38 @@ function InlineForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function DeleteButton({ title, onConfirm }: { title: string; onConfirm: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    if (!confirming) return;
+    const timeout = window.setTimeout(() => setConfirming(false), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [confirming]);
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (!confirming) {
+          setConfirming(true);
+          return;
+        }
+        onConfirm();
+        setConfirming(false);
+      }}
+      className={
+        confirming
+          ? "h-10 rounded-md border border-red-500/60 bg-red-500/15 px-3 text-xs font-semibold text-red-300 transition"
+          : "icon-button"
+      }
+      title={confirming ? "Clique novamente para confirmar" : title}
+    >
+      {confirming ? "Excluir?" : <Trash2 size={17} />}
+    </button>
   );
 }
 
@@ -1432,14 +1474,14 @@ function Select({ label, name, options, defaultValue }: { label: string; name: s
   );
 }
 
-function ProductForm({ action }: { action: (form: FormData) => void }) {
+function ProductForm({ action }: { action: (form: FormData) => boolean | void }) {
   return (
     <Panel title="Cadastrar produto">
       <SmartForm action={action} submit="Salvar produto">
         <Field label="Nome" name="name" />
         <Field label="Categoria" name="category" placeholder="Ex.: Pomadas, shampoos, óleos, máquinas" />
         <DecimalField label="Estoque" name="stock" placeholder="Ex.: 10" />
-        <MoneyField label="Custo" name="cost" />
+        <MoneyField label="Custo total do estoque" name="totalCost" placeholder="Ex.: 300,00" />
         <MoneyField label="Preço de venda" name="price" />
       </SmartForm>
     </Panel>
@@ -1478,9 +1520,7 @@ function ProductList({
                 <button onClick={() => editProduct(product)} className="icon-button" title="Editar produto">
                   <Pencil size={17} />
                 </button>
-                <button onClick={() => deleteProduct(product.id)} className="icon-button" title="Excluir produto">
-                  <Trash2 size={17} />
-                </button>
+                <DeleteButton title="Excluir produto" onConfirm={() => deleteProduct(product.id)} />
               </div>
             </div>
             <div className="mt-4 space-y-2 text-sm">
