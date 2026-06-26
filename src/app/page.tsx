@@ -114,13 +114,13 @@ type Tab = "dashboard" | "clientes" | "servicos" | "financeiro" | "relatorios" |
 
 const navItems: Array<{ key: Tab; label: string; icon: React.ElementType }> = [
   { key: "dashboard", label: "Dashboard", icon: TrendingUp },
-  { key: "clientes", label: "Clientes", icon: Users },
-  { key: "servicos", label: "Serviços", icon: Scissors },
-  { key: "financeiro", label: "Financeiro", icon: BadgeDollarSign },
   { key: "relatorios", label: "Relatórios", icon: ClipboardList },
   { key: "historico", label: "Histórico", icon: CalendarClock },
-  { key: "produtos", label: "Produtos", icon: Package },
+  { key: "clientes", label: "Clientes", icon: Users },
   { key: "agenda", label: "Agenda", icon: CheckCircle2 },
+  { key: "servicos", label: "Serviços", icon: Scissors },
+  { key: "produtos", label: "Produtos", icon: Package },
+  { key: "financeiro", label: "Financeiro", icon: BadgeDollarSign },
   { key: "admin", label: "Admin", icon: ShieldCheck },
 ];
 
@@ -1154,14 +1154,14 @@ export default function Home() {
                 <SmartForm action={addBarber} submit="Salvar barbeiro">
                   <Field label="Nome" name="name" />
                   <Field label="E-mail" name="email" type="email" />
-                  <DecimalField label="Comissão (%)" name="commissionRate" />
+                  <MoneyField label="Comissão (%)" name="commissionRate" placeholder="Ex.: 35,00" />
                   <Select label="Permissão" name="role" options={[["Administrador", "Administrador"], ["Barbeiro", "Barbeiro"], ["Recepcao", "Recepção"]]} />
                 </SmartForm>
                 {editingBarber ? (
                   <InlineForm key={editingBarber.id} title="Editar barbeiro" submit="Salvar barbeiro" onCancel={() => setEditingBarberId(null)} action={(form) => updateBarber(editingBarber, form)}>
                     <Field label="Nome" name="name" defaultValue={editingBarber.name} />
                     <Field label="E-mail" name="email" type="email" defaultValue={editingBarber.email} />
-                    <DecimalField label="Comissão (%)" name="commissionRate" defaultValue={String(editingBarber.commissionRate).replace(".", ",")} />
+                    <MoneyField label="Comissão (%)" name="commissionRate" defaultValue={editingBarber.commissionRate} placeholder="Ex.: 35,00" />
                   </InlineForm>
                 ) : null}
               </Panel>
