@@ -19,6 +19,7 @@ import {
   ClipboardList,
   CreditCard,
   Download,
+  Menu,
   Package,
   Pencil,
   Plus,
@@ -292,6 +293,7 @@ const formatMoneyTyping = (value: FormDataEntryValue | string | number | null | 
 export default function Home() {
   const [data, setData] = useState<AppData>(initialData);
   const [tab, setTab] = useState<Tab>("dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [range, setRange] = useState({ start: format(subDays(new Date(), 7), "yyyy-MM-dd"), end: todayKey() });
@@ -752,10 +754,15 @@ export default function Home() {
     doc.save(`relatorio-barbearia-${todayKey()}.pdf`);
   };
 
+  const selectTab = (nextTab: Tab) => {
+    setTab(nextTab);
+    setMobileMenuOpen(false);
+  };
+
   return (
     <main className="min-h-screen">
-      <aside className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-coal/95 px-2 py-2 backdrop-blur lg:inset-y-0 lg:left-0 lg:right-auto lg:w-72 lg:border-r lg:border-t-0 lg:p-5">
-        <div className="mb-8 hidden items-center gap-3 lg:flex">
+      <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-line bg-coal/95 p-5 backdrop-blur lg:block">
+        <div className="mb-8 flex items-center gap-3">
           <div className="grid size-11 place-items-center rounded-md border border-gold/50 bg-gold/10 text-gold">
             <Scissors size={24} />
           </div>
@@ -764,32 +771,27 @@ export default function Home() {
             <p className="text-xs text-muted">{syncStatus}</p>
           </div>
         </div>
-        <nav className="flex gap-1 overflow-x-auto lg:block lg:space-y-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = tab === item.key;
-            return (
-              <button
-                key={item.key}
-                onClick={() => setTab(item.key)}
-                className={`flex min-w-20 flex-1 items-center justify-center gap-2 rounded-md px-3 py-3 text-xs font-medium transition lg:w-full lg:justify-start lg:text-sm ${
-                  active ? "bg-gold text-coal" : "text-muted hover:bg-ivory/5 hover:text-ivory"
-                }`}
-              >
-                <Icon size={18} />
-                <span className="hidden sm:inline">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+        <NavigationItems activeTab={tab} onSelect={selectTab} />
       </aside>
 
-      <section className="pb-28 lg:ml-72 lg:pb-0">
+      <section className="lg:ml-72">
         <header className="no-print sticky top-0 z-20 border-b border-line bg-coal/86 px-4 py-4 backdrop-blur lg:px-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm text-gold">{format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}</p>
-              <h2 className="text-2xl font-semibold md:text-3xl">{navItems.find((item) => item.key === tab)?.label}</h2>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen((open) => !open)}
+                className="icon-button shrink-0 lg:hidden"
+                title={mobileMenuOpen ? "Fechar menu" : "Abrir menu"}
+                aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"}
+                aria-expanded={mobileMenuOpen}
+              >
+                {mobileMenuOpen ? <XCircle size={20} /> : <Menu size={20} />}
+              </button>
+              <div>
+                <p className="text-sm text-gold">{format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}</p>
+                <h2 className="text-2xl font-semibold md:text-3xl">{navItems.find((item) => item.key === tab)?.label}</h2>
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button onClick={exportPdf} className="icon-button w-auto px-4" title="Exportar PDF">
@@ -801,6 +803,11 @@ export default function Home() {
               </span>
             </div>
           </div>
+          {mobileMenuOpen ? (
+            <div className="mt-4 rounded-lg border border-line bg-panel p-2 shadow-[0_18px_60px_rgba(0,0,0,0.35)] lg:hidden">
+              <NavigationItems activeTab={tab} onSelect={selectTab} />
+            </div>
+          ) : null}
         </header>
 
         <div className="space-y-6 px-4 py-6 lg:px-8">
@@ -1229,6 +1236,30 @@ function SmartForm({ action, submit, children }: { action: (form: FormData) => b
         {submit}
       </button>
     </form>
+  );
+}
+
+function NavigationItems({ activeTab, onSelect }: { activeTab: Tab; onSelect: (tab: Tab) => void }) {
+  return (
+    <nav className="space-y-2">
+      {navItems.map((item) => {
+        const Icon = item.icon;
+        const active = activeTab === item.key;
+        return (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => onSelect(item.key)}
+            className={`flex h-11 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-medium transition ${
+              active ? "bg-gold text-coal" : "text-muted hover:bg-ivory/5 hover:text-ivory"
+            }`}
+          >
+            <Icon size={18} />
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
