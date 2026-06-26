@@ -168,6 +168,94 @@ const safeBackupDate = (value: string) => {
   }
 };
 
+const finiteNumber = (value: unknown, fallback = 0) => {
+  const parsed = typeof value === "number" ? value : parseDecimal(String(value ?? ""), fallback);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const ensureArray = <T,>(value: T[] | undefined) => (Array.isArray(value) ? value : []);
+
+const normalizeAppData = (items: AppData): AppData => ({
+  clients: ensureArray(items.clients)
+    .filter((client) => client && typeof client === "object")
+    .map((client) => ({
+      id: String(client.id || newId("c")),
+      name: String(client.name || ""),
+      phone: String(client.phone || ""),
+      birthDate: client.birthDate ? toInputDate(String(client.birthDate), "") : "",
+      notes: String(client.notes || ""),
+    }))
+    .filter((client) => client.name.trim()),
+  barbers: ensureArray(items.barbers)
+    .filter((barber) => barber && typeof barber === "object")
+    .map((barber) => ({
+      id: String(barber.id || newId("b")),
+      name: String(barber.name || ""),
+      email: String(barber.email || ""),
+      commissionRate: finiteNumber(barber.commissionRate),
+      role: (["Administrador", "Barbeiro", "Recepcao"].includes(String(barber.role)) ? barber.role : "Barbeiro") as Barber["role"],
+      active: barber.active !== false,
+    }))
+    .filter((barber) => barber.name.trim()),
+  services: ensureArray(items.services)
+    .filter((service) => service && typeof service === "object")
+    .map((service) => ({
+      id: String(service.id || newId("s")),
+      clientId: String(service.clientId || ""),
+      barberId: String(service.barberId || ""),
+      date: toInputDate(String(service.date || ""), todayKey()),
+      service: String(service.service || ""),
+      customService: String(service.customService || ""),
+      value: finiteNumber(service.value),
+    }))
+    .filter((service) => service.service.trim()),
+  expenses: ensureArray(items.expenses)
+    .filter((expense) => expense && typeof expense === "object")
+    .map((expense) => ({
+      id: String(expense.id || newId("e")),
+      date: toInputDate(String(expense.date || ""), todayKey()),
+      category: String(expense.category || ""),
+      description: String(expense.description || ""),
+      value: finiteNumber(expense.value),
+    }))
+    .filter((expense) => expense.category.trim()),
+  products: ensureArray(items.products)
+    .filter((product) => product && typeof product === "object")
+    .map((product) => ({
+      id: String(product.id || newId("p")),
+      name: String(product.name || ""),
+      category: String(product.category || ""),
+      stock: finiteNumber(product.stock),
+      cost: finiteNumber(product.cost),
+      price: finiteNumber(product.price),
+      sold: finiteNumber(product.sold),
+    }))
+    .filter((product) => product.name.trim()),
+  productSales: ensureArray(items.productSales)
+    .filter((sale) => sale && typeof sale === "object")
+    .map((sale) => ({
+      id: String(sale.id || newId("ps")),
+      productId: String(sale.productId || ""),
+      clientId: String(sale.clientId || ""),
+      date: toInputDate(String(sale.date || ""), todayKey()),
+      quantity: finiteNumber(sale.quantity),
+      unitPrice: finiteNumber(sale.unitPrice),
+    }))
+    .filter((sale) => sale.productId.trim()),
+  appointments: ensureArray(items.appointments)
+    .filter((appointment) => appointment && typeof appointment === "object")
+    .map((appointment) => ({
+      id: String(appointment.id || newId("a")),
+      clientId: String(appointment.clientId || ""),
+      barberId: String(appointment.barberId || ""),
+      date: toInputDate(String(appointment.date || ""), todayKey()),
+      time: String(appointment.time || "09:00").slice(0, 5),
+      service: String(appointment.service || ""),
+      status: (["Confirmado", "Pendente", "Cancelado"].includes(String(appointment.status)) ? appointment.status : "Pendente") as Appointment["status"],
+    }))
+    .filter((appointment) => appointment.service.trim()),
+});
+
 const promptText = (label: string, current = "") => {
   const value = window.prompt(label, current);
   return value === null ? null : value.trim();
@@ -260,7 +348,7 @@ export default function Home() {
     const saved = localStorage.getItem("barbearia-pro-data");
     if (saved) {
       try {
-        const localData = JSON.parse(saved) as AppData;
+        const localData = normalizeAppData(JSON.parse(saved) as AppData);
         latestDataRef.current = localData;
         lastSnapshotRef.current = serializeData(localData);
         setData(localData);
@@ -280,7 +368,8 @@ export default function Home() {
 
     setSyncStatus("Carregando dados do banco...");
     withTimeout(loadRemoteData(client, sharedUserId), "Carregamento")
-      .then(async (remoteData) => {
+      .then(async (loadedData) => {
+        const remoteData = normalizeAppData(loadedData);
         if (hasData(remoteData)) {
           suppressNextSaveRef.current = true;
           latestDataRef.current = remoteData;
@@ -332,7 +421,8 @@ export default function Home() {
     const interval = window.setInterval(() => {
       if (savingRef.current || dirtyRef.current || Date.now() - lastLocalChangeRef.current < 8000) return;
       withTimeout(loadRemoteData(client, sharedUserId), "Atualização do banco")
-        .then((remoteData) => {
+        .then((loadedData) => {
+          const remoteData = normalizeAppData(loadedData);
           if (!hasData(remoteData)) return;
           const snapshot = serializeData(remoteData);
           if (snapshot === lastSnapshotRef.current) return;

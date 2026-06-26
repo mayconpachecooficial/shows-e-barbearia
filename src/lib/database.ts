@@ -34,9 +34,7 @@ export async function loadRemoteData(supabase: SupabaseClient, userId: SharedUse
 export async function saveRemoteData(supabase: SupabaseClient, userId: SharedUserId, data: AppData, previous?: AppData) {
   const changes = buildChanges(data, previous, userId);
 
-  for (const change of changes.upserts) {
-    await upsertRows(supabase, change.table, change.rows);
-  }
+  await Promise.all(changes.upserts.map((change) => upsertRows(supabase, change.table, change.rows)));
 
   for (const change of changes.deletions) {
     await deleteRowsByIds(supabase, change.table, userId, change.ids);
@@ -85,10 +83,10 @@ async function upsertRows(supabase: SupabaseClient, table: string, rows: Row[]) 
 }
 
 async function deleteRowsByIds(supabase: SupabaseClient, table: string, userId: SharedUserId, ids: string[]) {
-  for (const id of ids) {
+  await Promise.all(ids.map(async (id) => {
     const { error } = await filterByUser(supabase.from(table).delete().eq("id", id) as unknown as SupabaseQuery, userId) as unknown as SupabaseMutationResult;
     if (error) throw error;
-  }
+  }));
 }
 
 function buildChanges(data: AppData, previous: AppData | undefined, userId: SharedUserId) {
