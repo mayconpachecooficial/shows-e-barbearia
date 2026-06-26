@@ -1,4 +1,4 @@
-import { endOfMonth, endOfWeek, format, isWithinInterval, parseISO, startOfMonth, startOfWeek } from "date-fns";
+import { endOfMonth, endOfWeek, format, isValid, isWithinInterval, parseISO, startOfMonth, startOfWeek } from "date-fns";
 import type { AppData, Barber, Product, ProductSale, ServiceRecord } from "./types";
 
 export const brl = new Intl.NumberFormat("pt-BR", {
@@ -8,19 +8,28 @@ export const brl = new Intl.NumberFormat("pt-BR", {
 
 export const todayKey = () => format(new Date(), "yyyy-MM-dd");
 
+function parseValidDate(date: string) {
+  const parsed = parseISO(date);
+  return isValid(parsed) ? parsed : null;
+}
+
 export function inDay(date: string, day = todayKey()) {
   return date === day;
 }
 
 export function inWeek(date: string, base = new Date()) {
-  return isWithinInterval(parseISO(date), {
+  const parsed = parseValidDate(date);
+  if (!parsed) return false;
+  return isWithinInterval(parsed, {
     start: startOfWeek(base, { weekStartsOn: 1 }),
     end: endOfWeek(base, { weekStartsOn: 1 }),
   });
 }
 
 export function inMonth(date: string, base = new Date()) {
-  return isWithinInterval(parseISO(date), {
+  const parsed = parseValidDate(date);
+  if (!parsed) return false;
+  return isWithinInterval(parsed, {
     start: startOfMonth(base),
     end: endOfMonth(base),
   });
@@ -68,7 +77,9 @@ export function netProfit(data: AppData, predicate: (date: string) => boolean) {
 }
 
 export function buildRevenueChart(data: AppData) {
-  const dates = Array.from(new Set([...data.services.map((item) => item.date), ...data.productSales.map((item) => item.date)])).sort();
+  const dates = Array.from(new Set([...data.services.map((item) => item.date), ...data.productSales.map((item) => item.date)]))
+    .filter((date) => Boolean(parseValidDate(date)))
+    .sort();
   return dates.slice(-14).map((date) => ({
     date: format(parseISO(date), "dd/MM"),
     servicos: serviceRevenue(data.services.filter((item) => item.date === date)),

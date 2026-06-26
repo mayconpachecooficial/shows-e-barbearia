@@ -173,10 +173,21 @@ const promptText = (label: string, current = "") => {
   return value === null ? null : value.trim();
 };
 
+const parseDecimal = (value: FormDataEntryValue | string | number | null | undefined, fallback = 0) => {
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/\s/g, "")
+    .replace(/\.(?=\d{3}(,|\.|$))/g, "")
+    .replace(",", ".");
+  if (!normalized) return fallback;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const promptNumber = (label: string, current: number) => {
   const value = window.prompt(label, String(current));
   if (value === null) return null;
-  const parsed = Number(value.replace(",", "."));
+  const parsed = parseDecimal(value, Number.NaN);
   return Number.isFinite(parsed) ? parsed : null;
 };
 
@@ -400,7 +411,7 @@ export default function Home() {
       date: toInputDate(String(form.get("date") || ""), todayKey()),
       service: String(form.get("service") || ""),
       customService: String(form.get("customService") || ""),
-      value: Number(form.get("value") || 0),
+      value: parseDecimal(form.get("value")),
     };
     if (!record.clientId || !record.barberId || !record.service.trim() || !record.value) return;
     setData((current) => ({ ...current, services: [record, ...current.services] }));
@@ -412,7 +423,7 @@ export default function Home() {
       date: toInputDate(String(form.get("date") || ""), todayKey()),
       category: String(form.get("category") || ""),
       description: String(form.get("description") || ""),
-      value: Number(form.get("value") || 0),
+      value: parseDecimal(form.get("value")),
     };
     if (!expense.category.trim() || !expense.value) return;
     setData((current) => ({ ...current, expenses: [expense, ...current.expenses] }));
@@ -423,9 +434,9 @@ export default function Home() {
       id: newId("p"),
       name: String(form.get("name") || ""),
       category: String(form.get("category") || ""),
-      stock: Number(form.get("stock") || 0),
-      cost: Number(form.get("cost") || 0),
-      price: Number(form.get("price") || 0),
+      stock: parseDecimal(form.get("stock")),
+      cost: parseDecimal(form.get("cost")),
+      price: parseDecimal(form.get("price")),
       sold: 0,
     };
     if (!product.name.trim() || !product.category.trim()) return;
@@ -433,7 +444,7 @@ export default function Home() {
   };
 
   const sellProduct = (form: FormData) => {
-    const quantity = Number(form.get("quantity") || 1);
+    const quantity = parseDecimal(form.get("quantity"), 1);
     const productId = String(form.get("productId"));
     const product = selectedProduct(productId);
     if (!product || quantity <= 0) return false;
@@ -448,7 +459,7 @@ export default function Home() {
       clientId: String(form.get("clientId") || ""),
       date: toInputDate(String(form.get("date") || ""), todayKey()),
       quantity,
-      unitPrice: Number(form.get("unitPrice") || product.price),
+      unitPrice: parseDecimal(form.get("unitPrice"), product.price),
     };
     setData((current) => ({
       ...current,
@@ -478,7 +489,7 @@ export default function Home() {
       id: newId("b"),
       name: String(form.get("name") || ""),
       email: String(form.get("email") || ""),
-      commissionRate: Number(form.get("commissionRate") || 0),
+      commissionRate: parseDecimal(form.get("commissionRate")),
       role: String(form.get("role") || "Barbeiro") as Barber["role"],
       active: true,
     };
@@ -802,7 +813,7 @@ export default function Home() {
                   <Select label="Barbeiro" name="barberId" options={data.barbers.filter((barber) => barber.active).map((barber) => [barber.id, barber.name])} />
                   <DateField label="Data" name="date" defaultValue={todayKey()} />
                   <Field label="Serviço realizado" name="service" placeholder="Ex.: Corte degradê, barba terapia, luzes" />
-                  <Field label="Valor cobrado" name="value" type="number" />
+                  <DecimalField label="Valor cobrado" name="value" />
                 </SmartForm>
               </Panel>
               <Panel title="Últimos atendimentos">
@@ -840,8 +851,8 @@ export default function Home() {
                   <Select label="Produto" name="productId" options={data.products.map((product) => [product.id, product.name])} />
                   <Select label="Cliente" name="clientId" options={[["", "Venda avulsa"], ...data.clients.map((client) => [client.id, client.name])]} />
                   <DateField label="Data" name="date" defaultValue={todayKey()} />
-                  <Field label="Quantidade" name="quantity" type="number" defaultValue="1" />
-                  <Field label="Preço unitário" name="unitPrice" type="number" />
+                  <DecimalField label="Quantidade" name="quantity" defaultValue="1" />
+                  <DecimalField label="Preço unitário" name="unitPrice" />
                 </SmartForm>
                 <div className="mt-5 space-y-2">
                   <Row label="Serviços no mês" value={brl.format(serviceRevenue(data.services.filter((item) => inMonth(item.date))))} />
@@ -853,7 +864,7 @@ export default function Home() {
                   <DateField label="Data" name="date" defaultValue={todayKey()} />
                   <Field label="Categoria" name="category" placeholder="Ex.: Aluguel, produtos, taxa, limpeza" />
                   <Field label="Descrição" name="description" />
-                  <Field label="Valor" name="value" type="number" />
+                  <DecimalField label="Valor" name="value" />
                 </SmartForm>
                 <div className="mt-5 space-y-2">
                   <Row label="Despesas hoje" value={brl.format(metrics.todayExpenses)} />
@@ -1004,7 +1015,7 @@ export default function Home() {
                 <SmartForm action={addBarber} submit="Salvar barbeiro">
                   <Field label="Nome" name="name" />
                   <Field label="E-mail" name="email" type="email" />
-                  <Field label="Comissão (%)" name="commissionRate" type="number" />
+                  <DecimalField label="Comissão (%)" name="commissionRate" />
                   <Select label="Permissão" name="role" options={[["Administrador", "Administrador"], ["Barbeiro", "Barbeiro"], ["Recepcao", "Recepção"]]} />
                 </SmartForm>
               </Panel>
@@ -1072,6 +1083,22 @@ function Field(props: React.InputHTMLAttributes<HTMLInputElement> & { label: str
       <span className="mb-1 block text-sm text-muted">{label}</span>
       <input
         {...input}
+        className="h-11 w-full rounded-md border border-line bg-coal px-3 text-ivory outline-none transition placeholder:text-muted focus:border-gold"
+      />
+    </label>
+  );
+}
+
+function DecimalField(props: React.InputHTMLAttributes<HTMLInputElement> & { label: string; name: string }) {
+  const { label, ...input } = props;
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm text-muted">{label}</span>
+      <input
+        {...input}
+        type="text"
+        inputMode="decimal"
+        placeholder={input.placeholder ?? "Ex.: 99,90"}
         className="h-11 w-full rounded-md border border-line bg-coal px-3 text-ivory outline-none transition placeholder:text-muted focus:border-gold"
       />
     </label>
@@ -1159,9 +1186,9 @@ function ProductForm({ action }: { action: (form: FormData) => void }) {
       <SmartForm action={action} submit="Salvar produto">
         <Field label="Nome" name="name" />
         <Field label="Categoria" name="category" placeholder="Ex.: Pomadas, shampoos, óleos, máquinas" />
-        <Field label="Estoque" name="stock" type="number" />
-        <Field label="Custo" name="cost" type="number" />
-        <Field label="Preço de venda" name="price" type="number" />
+        <DecimalField label="Estoque" name="stock" placeholder="Ex.: 10" />
+        <DecimalField label="Custo" name="cost" />
+        <DecimalField label="Preço de venda" name="price" />
       </SmartForm>
     </Panel>
   );
