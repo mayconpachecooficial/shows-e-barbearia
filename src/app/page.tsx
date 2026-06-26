@@ -255,11 +255,6 @@ const normalizeAppData = (items: AppData): AppData => ({
     .filter((appointment) => appointment.service.trim()),
 });
 
-const promptText = (label: string, current = "") => {
-  const value = window.prompt(label, current);
-  return value === null ? null : value.trim();
-};
-
 const parseDecimal = (value: FormDataEntryValue | string | number | null | undefined, fallback = 0) => {
   const normalized = String(value ?? "")
     .trim()
@@ -271,22 +266,6 @@ const parseDecimal = (value: FormDataEntryValue | string | number | null | undef
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const promptNumber = (label: string, current: number) => {
-  const value = window.prompt(label, String(current));
-  if (value === null) return null;
-  const parsed = parseDecimal(value, Number.NaN);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const promptChoice = (label: string, options: Array<{ id: string; text: string }>, currentId: string) => {
-  const currentIndex = Math.max(0, options.findIndex((option) => option.id === currentId));
-  const list = options.map((option, index) => `${index + 1} - ${option.text}`).join("\n");
-  const value = window.prompt(`${label}\n${list}`, String(currentIndex + 1));
-  if (value === null) return null;
-  const index = Number(value) - 1;
-  return options[index]?.id ?? null;
-};
-
 export default function Home() {
   const [data, setData] = useState<AppData>(initialData);
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -296,6 +275,13 @@ export default function Home() {
   const [lastBackup, setLastBackup] = useState("");
   const [syncStatus, setSyncStatus] = useState(isSupabaseConfigured ? "Conectando ao banco..." : "Modo local ativo");
   const [notice, setNotice] = useState("");
+  const [editingClientId, setEditingClientId] = useState<string | null>(null);
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [stockProductId, setStockProductId] = useState<string | null>(null);
+  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
+  const [editingBarberId, setEditingBarberId] = useState<string | null>(null);
   const hydratedRef = useRef(false);
   const savingRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -453,6 +439,13 @@ export default function Home() {
   const selectedClient = (id?: string) => data.clients.find((client) => client.id === id);
   const selectedBarber = (id?: string) => data.barbers.find((barber) => barber.id === id);
   const selectedProduct = (id?: string) => data.products.find((product) => product.id === id);
+  const editingClient = selectedClient(editingClientId ?? undefined);
+  const editingService = data.services.find((service) => service.id === editingServiceId);
+  const editingExpense = data.expenses.find((expense) => expense.id === editingExpenseId);
+  const editingProduct = selectedProduct(editingProductId ?? undefined);
+  const stockProduct = selectedProduct(stockProductId ?? undefined);
+  const editingAppointment = data.appointments.find((appointment) => appointment.id === editingAppointmentId);
+  const editingBarber = selectedBarber(editingBarberId ?? undefined);
   const clientNameById = useMemo(() => new Map(data.clients.map((client) => [client.id, client.name])), [data.clients]);
   const barberNameById = useMemo(() => new Map(data.barbers.map((barber) => [barber.id, barber.name])), [data.barbers]);
   const productProfitById = useMemo(() => {
@@ -614,112 +607,95 @@ export default function Home() {
     }));
   };
 
-  const editClient = (client: Client) => {
-    const name = promptText("Nome completo", client.name);
-    if (name === null || !name) return;
-    const phone = promptText("Telefone", client.phone);
-    if (phone === null) return;
-    const birthDateValue = promptText("Data de nascimento (DD-MM-AAAA)", toDisplayDate(client.birthDate));
-    const birthDate = birthDateValue === null ? null : toInputDate(birthDateValue, "");
-    if (birthDate === null) return;
-    const notes = window.prompt("Observações", client.notes);
-    if (notes === null) return;
+  const updateClient = (client: Client, form: FormData) => {
+    const name = String(form.get("name") || "");
+    const phone = String(form.get("phone") || "");
+    const birthDate = toInputDate(String(form.get("birthDate") || ""), "");
+    const notes = String(form.get("notes") || "");
+    if (!name.trim()) return false;
     setData((current) => ({
       ...current,
       clients: current.clients.map((item) => (item.id === client.id ? { ...item, name, phone, birthDate, notes } : item)),
     }));
+    setEditingClientId(null);
   };
 
-  const editService = (service: ServiceRecord) => {
-    const clientId = promptChoice("Cliente", data.clients.map((client) => ({ id: client.id, text: client.name })), service.clientId);
-    if (clientId === null) return;
-    const barberId = promptChoice("Barbeiro", data.barbers.map((barber) => ({ id: barber.id, text: barber.name })), service.barberId);
-    if (barberId === null) return;
-    const dateValue = promptText("Data do atendimento (DD-MM-AAAA)", toDisplayDate(service.date));
-    const date = dateValue === null ? null : toInputDate(dateValue, service.date);
-    if (date === null || !date) return;
-    const serviceName = promptText("Serviço realizado", service.service);
-    if (serviceName === null || !serviceName) return;
-    const value = promptNumber("Valor cobrado", service.value);
-    if (value === null || value <= 0) return;
+  const updateService = (service: ServiceRecord, form: FormData) => {
+    const clientId = String(form.get("clientId") || "");
+    const barberId = String(form.get("barberId") || "");
+    const date = toInputDate(String(form.get("date") || ""), service.date);
+    const serviceName = String(form.get("service") || "");
+    const value = parseDecimal(form.get("value"));
+    if (!clientId || !barberId || !serviceName.trim() || value <= 0) return false;
     setData((current) => ({
       ...current,
       services: current.services.map((item) => (item.id === service.id ? { ...item, clientId, barberId, date, service: serviceName, value } : item)),
     }));
+    setEditingServiceId(null);
   };
 
-  const editExpense = (expense: Expense) => {
-    const dateValue = promptText("Data da despesa (DD-MM-AAAA)", toDisplayDate(expense.date));
-    const date = dateValue === null ? null : toInputDate(dateValue, expense.date);
-    if (date === null || !date) return;
-    const category = promptText("Categoria", expense.category);
-    if (category === null || !category) return;
-    const description = promptText("Descrição", expense.description);
-    if (description === null) return;
-    const value = promptNumber("Valor", expense.value);
-    if (value === null || value <= 0) return;
+  const updateExpense = (expense: Expense, form: FormData) => {
+    const date = toInputDate(String(form.get("date") || ""), expense.date);
+    const category = String(form.get("category") || "");
+    const description = String(form.get("description") || "");
+    const value = parseDecimal(form.get("value"));
+    if (!category.trim() || value <= 0) return false;
     setData((current) => ({
       ...current,
       expenses: current.expenses.map((item) => (item.id === expense.id ? { ...item, date, category, description, value } : item)),
     }));
+    setEditingExpenseId(null);
   };
 
-  const editProduct = (product: Product) => {
-    const name = promptText("Nome do produto", product.name);
-    if (name === null || !name) return;
-    const category = promptText("Categoria", product.category);
-    if (category === null || !category) return;
-    const stock = promptNumber("Estoque total", product.stock);
-    if (stock === null || stock < 0) return;
-    const cost = promptNumber("Custo", product.cost);
-    if (cost === null || cost < 0) return;
-    const price = promptNumber("Preço de venda", product.price);
-    if (price === null || price < 0) return;
+  const updateProduct = (product: Product, form: FormData) => {
+    const name = String(form.get("name") || "");
+    const category = String(form.get("category") || "");
+    const stock = parseDecimal(form.get("stock"));
+    const cost = parseDecimal(form.get("cost"));
+    const price = parseDecimal(form.get("price"));
+    if (!name.trim() || !category.trim() || stock < 0 || cost < 0 || price < 0) return false;
     setData((current) => ({
       ...current,
       products: current.products.map((item) => (item.id === product.id ? { ...item, name, category, stock, cost, price } : item)),
     }));
+    setEditingProductId(null);
   };
 
-  const addProductStock = (product: Product) => {
-    const quantity = promptNumber(`Adicionar quantas unidades em ${product.name}?`, 1);
-    if (quantity === null || quantity <= 0) return;
+  const addProductStock = (product: Product, form: FormData) => {
+    const quantity = parseDecimal(form.get("quantity"), 0);
+    if (quantity <= 0) return false;
     setData((current) => ({
       ...current,
       products: current.products.map((item) => (item.id === product.id ? { ...item, stock: item.stock + quantity } : item)),
     }));
     setNotice(`Estoque atualizado: ${product.name} recebeu ${quantity} un.`);
+    setStockProductId(null);
   };
 
-  const editAppointment = (appointment: Appointment) => {
-    const clientId = promptChoice("Cliente", data.clients.map((client) => ({ id: client.id, text: client.name })), appointment.clientId);
-    if (clientId === null) return;
-    const barberId = promptChoice("Barbeiro", data.barbers.map((barber) => ({ id: barber.id, text: barber.name })), appointment.barberId);
-    if (barberId === null) return;
-    const dateValue = promptText("Data do agendamento (DD-MM-AAAA)", toDisplayDate(appointment.date));
-    const date = dateValue === null ? null : toInputDate(dateValue, appointment.date);
-    if (date === null || !date) return;
-    const time = promptText("Horário (HH:MM)", appointment.time);
-    if (time === null || !time) return;
-    const service = promptText("Serviço", appointment.service);
-    if (service === null || !service) return;
+  const updateAppointment = (appointment: Appointment, form: FormData) => {
+    const clientId = String(form.get("clientId") || "");
+    const barberId = String(form.get("barberId") || "");
+    const date = toInputDate(String(form.get("date") || ""), appointment.date);
+    const time = String(form.get("time") || appointment.time);
+    const service = String(form.get("service") || "");
+    if (!clientId || !barberId || !time || !service.trim()) return false;
     setData((current) => ({
       ...current,
       appointments: current.appointments.map((item) => (item.id === appointment.id ? { ...item, clientId, barberId, date, time, service } : item)),
     }));
+    setEditingAppointmentId(null);
   };
 
-  const editBarber = (barber: Barber) => {
-    const name = promptText("Nome do barbeiro", barber.name);
-    if (name === null || !name) return;
-    const email = promptText("E-mail", barber.email);
-    if (email === null) return;
-    const commissionRate = promptNumber("Comissão (%)", barber.commissionRate);
-    if (commissionRate === null || commissionRate < 0) return;
+  const updateBarber = (barber: Barber, form: FormData) => {
+    const name = String(form.get("name") || "");
+    const email = String(form.get("email") || "");
+    const commissionRate = parseDecimal(form.get("commissionRate"));
+    if (!name.trim() || commissionRate < 0) return false;
     setData((current) => ({
       ...current,
       barbers: current.barbers.map((item) => (item.id === barber.id ? { ...item, name, email, commissionRate } : item)),
     }));
+    setEditingBarberId(null);
   };
 
   const updateAppointmentStatus = (id: string, status: Appointment["status"]) => {
@@ -856,6 +832,14 @@ export default function Home() {
                   <DateField label="Data de nascimento" name="birthDate" defaultValue="" />
                   <Textarea label="Observações" name="notes" />
                 </SmartForm>
+                {editingClient ? (
+                  <InlineForm key={editingClient.id} title="Editar cliente" submit="Salvar alterações" onCancel={() => setEditingClientId(null)} action={(form) => updateClient(editingClient, form)}>
+                    <Field label="Nome completo" name="name" defaultValue={editingClient.name} />
+                    <Field label="Telefone" name="phone" defaultValue={editingClient.phone} />
+                    <DateField label="Data de nascimento" name="birthDate" defaultValue={editingClient.birthDate} />
+                    <Textarea label="Observações" name="notes" defaultValue={editingClient.notes} />
+                  </InlineForm>
+                ) : null}
               </Panel>
               <Panel title="Clientes e histórico">
                 <SearchBox query={query} setQuery={setQuery} placeholder="Pesquisar por nome ou telefone" />
@@ -872,7 +856,7 @@ export default function Home() {
                             <p className="mt-3 text-sm text-gold">{history.length} atendimento(s) • {brl.format(serviceRevenue(history))}</p>
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={() => editClient(client)} className="icon-button" title="Editar cliente">
+                            <button onClick={() => setEditingClientId(client.id)} className="icon-button" title="Editar cliente">
                               <Pencil size={17} />
                             </button>
                             <button onClick={() => deleteClient(client.id)} className="icon-button" title="Excluir cliente">
@@ -898,6 +882,15 @@ export default function Home() {
                   <Field label="Serviço realizado" name="service" placeholder="Ex.: Corte degradê, barba terapia, luzes" />
                   <DecimalField label="Valor cobrado" name="value" />
                 </SmartForm>
+                {editingService ? (
+                  <InlineForm key={editingService.id} title="Editar atendimento" submit="Salvar atendimento" onCancel={() => setEditingServiceId(null)} action={(form) => updateService(editingService, form)}>
+                    <Select label="Cliente" name="clientId" defaultValue={editingService.clientId} options={data.clients.map((client) => [client.id, client.name])} />
+                    <Select label="Barbeiro" name="barberId" defaultValue={editingService.barberId} options={data.barbers.filter((barber) => barber.active).map((barber) => [barber.id, barber.name])} />
+                    <DateField label="Data" name="date" defaultValue={editingService.date} />
+                    <Field label="Serviço realizado" name="service" defaultValue={editingService.service} />
+                    <DecimalField label="Valor cobrado" name="value" defaultValue={String(editingService.value).replace(".", ",")} />
+                  </InlineForm>
+                ) : null}
               </Panel>
               <Panel title="Últimos atendimentos">
                 <div className="space-y-3">
@@ -912,7 +905,7 @@ export default function Home() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-gold">{brl.format(service.value)}</span>
-                          <button onClick={() => editService(service)} className="icon-button" title="Editar atendimento">
+                          <button onClick={() => setEditingServiceId(service.id)} className="icon-button" title="Editar atendimento">
                             <Pencil size={17} />
                           </button>
                           <button onClick={() => deleteById("services", service.id)} className="icon-button" title="Excluir atendimento">
@@ -949,6 +942,14 @@ export default function Home() {
                   <Field label="Descrição" name="description" />
                   <DecimalField label="Valor" name="value" />
                 </SmartForm>
+                {editingExpense ? (
+                  <InlineForm key={editingExpense.id} title="Editar despesa" submit="Salvar despesa" onCancel={() => setEditingExpenseId(null)} action={(form) => updateExpense(editingExpense, form)}>
+                    <DateField label="Data" name="date" defaultValue={editingExpense.date} />
+                    <Field label="Categoria" name="category" defaultValue={editingExpense.category} />
+                    <Field label="Descrição" name="description" defaultValue={editingExpense.description} />
+                    <DecimalField label="Valor" name="value" defaultValue={String(editingExpense.value).replace(".", ",")} />
+                  </InlineForm>
+                ) : null}
                 <div className="mt-5 space-y-2">
                   <Row label="Despesas hoje" value={brl.format(metrics.todayExpenses)} />
                   <Row label="Despesas semana" value={brl.format(metrics.weekExpenses)} />
@@ -964,7 +965,7 @@ export default function Home() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-gold">{brl.format(expense.value)}</span>
-                          <button onClick={() => editExpense(expense)} className="icon-button" title="Editar despesa">
+                          <button onClick={() => setEditingExpenseId(expense.id)} className="icon-button" title="Editar despesa">
                             <Pencil size={17} />
                           </button>
                           <button onClick={() => deleteById("expenses", expense.id)} className="icon-button" title="Excluir despesa">
@@ -1041,12 +1042,26 @@ export default function Home() {
             <div className="grid gap-6 xl:grid-cols-[0.85fr_1.4fr]">
               <ProductForm action={addProduct} />
               <Panel title="Estoque e lucro">
+                {editingProduct ? (
+                  <InlineForm key={editingProduct.id} title="Editar produto" submit="Salvar produto" onCancel={() => setEditingProductId(null)} action={(form) => updateProduct(editingProduct, form)}>
+                    <Field label="Nome" name="name" defaultValue={editingProduct.name} />
+                    <Field label="Categoria" name="category" defaultValue={editingProduct.category} />
+                    <DecimalField label="Estoque" name="stock" defaultValue={String(editingProduct.stock).replace(".", ",")} />
+                    <DecimalField label="Custo" name="cost" defaultValue={String(editingProduct.cost).replace(".", ",")} />
+                    <DecimalField label="Preço de venda" name="price" defaultValue={String(editingProduct.price).replace(".", ",")} />
+                  </InlineForm>
+                ) : null}
+                {stockProduct ? (
+                  <InlineForm key={`stock-${stockProduct.id}`} title={`Adicionar estoque: ${stockProduct.name}`} submit="Adicionar unidades" onCancel={() => setStockProductId(null)} action={(form) => addProductStock(stockProduct, form)}>
+                    <DecimalField label="Quantidade" name="quantity" defaultValue="1" placeholder="Ex.: 10" />
+                  </InlineForm>
+                ) : null}
                 <ProductList
                   products={visibleProducts}
                   totalProducts={data.products.length}
                   profitById={productProfitById}
-                  editProduct={editProduct}
-                  addProductStock={addProductStock}
+                  editProduct={(product) => setEditingProductId(product.id)}
+                  addProductStock={(product) => setStockProductId(product.id)}
                   deleteProduct={deleteProduct}
                 />
               </Panel>
@@ -1063,6 +1078,15 @@ export default function Home() {
                   <Field label="Horário" name="time" type="time" defaultValue="09:00" />
                   <Field label="Serviço" name="service" placeholder="Ex.: Corte social, barba, pigmentação" />
                 </SmartForm>
+                {editingAppointment ? (
+                  <InlineForm key={editingAppointment.id} title="Editar agendamento" submit="Salvar agendamento" onCancel={() => setEditingAppointmentId(null)} action={(form) => updateAppointment(editingAppointment, form)}>
+                    <Select label="Cliente" name="clientId" defaultValue={editingAppointment.clientId} options={data.clients.map((client) => [client.id, client.name])} />
+                    <Select label="Barbeiro" name="barberId" defaultValue={editingAppointment.barberId} options={data.barbers.filter((barber) => barber.active).map((barber) => [barber.id, barber.name])} />
+                    <DateField label="Data" name="date" defaultValue={editingAppointment.date} />
+                    <Field label="Horário" name="time" type="time" defaultValue={editingAppointment.time} />
+                    <Field label="Serviço" name="service" defaultValue={editingAppointment.service} />
+                  </InlineForm>
+                ) : null}
               </Panel>
               <Panel title="Calendário de horários">
                 <div className="grid gap-3">
@@ -1074,7 +1098,7 @@ export default function Home() {
                             <p className="text-sm text-muted">{clientNameById.get(appointment.clientId) ?? "-"} • {appointment.service} • {barberNameById.get(appointment.barberId) ?? "-"}</p>
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={() => editAppointment(appointment)} className="icon-button" title="Editar agendamento">
+                            <button onClick={() => setEditingAppointmentId(appointment.id)} className="icon-button" title="Editar agendamento">
                               <Pencil size={17} />
                             </button>
                             <button onClick={() => updateAppointmentStatus(appointment.id, "Confirmado")} className="icon-button" title="Confirmar">
@@ -1110,6 +1134,13 @@ export default function Home() {
                   <DecimalField label="Comissão (%)" name="commissionRate" />
                   <Select label="Permissão" name="role" options={[["Administrador", "Administrador"], ["Barbeiro", "Barbeiro"], ["Recepcao", "Recepção"]]} />
                 </SmartForm>
+                {editingBarber ? (
+                  <InlineForm key={editingBarber.id} title="Editar barbeiro" submit="Salvar barbeiro" onCancel={() => setEditingBarberId(null)} action={(form) => updateBarber(editingBarber, form)}>
+                    <Field label="Nome" name="name" defaultValue={editingBarber.name} />
+                    <Field label="E-mail" name="email" type="email" defaultValue={editingBarber.email} />
+                    <DecimalField label="Comissão (%)" name="commissionRate" defaultValue={String(editingBarber.commissionRate).replace(".", ",")} />
+                  </InlineForm>
+                ) : null}
               </Panel>
               <Panel title="Comissões e permissões">
                 <div className="space-y-3">
@@ -1128,7 +1159,7 @@ export default function Home() {
                             <p className="font-semibold text-gold">{brl.format(serviceRevenue(barberServices))}</p>
                             <p className="text-sm text-muted">Comissão {brl.format(barberCommission(barber, barberServices))}</p>
                             </div>
-                            <button onClick={() => editBarber(barber)} className="icon-button" title="Editar barbeiro">
+                            <button onClick={() => setEditingBarberId(barber.id)} className="icon-button" title="Editar barbeiro">
                               <Pencil size={17} />
                             </button>
                             <button onClick={() => deleteBarber(barber.id)} className="icon-button" title="Excluir barbeiro">
@@ -1164,6 +1195,43 @@ function SmartForm({ action, submit, children }: { action: (form: FormData) => b
         <Plus size={18} />
         {submit}
       </button>
+    </form>
+  );
+}
+
+function InlineForm({
+  title,
+  action,
+  submit,
+  onCancel,
+  children,
+}: {
+  title: string;
+  action: (form: FormData) => boolean | void;
+  submit: string;
+  onCancel: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <form
+      className="mt-5 space-y-4 rounded-lg border border-gold/30 bg-gold/5 p-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const result = action(new FormData(event.currentTarget));
+        if (result !== false) event.currentTarget.reset();
+      }}
+    >
+      <h3 className="font-semibold text-gold">{title}</h3>
+      {children}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button className="flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-gold px-4 font-semibold text-coal transition hover:bg-gold-soft">
+          <Plus size={18} />
+          {submit}
+        </button>
+        <button type="button" onClick={onCancel} className="h-11 rounded-md border border-line px-4 font-semibold text-ivory">
+          Cancelar
+        </button>
+      </div>
     </form>
   );
 }
@@ -1248,20 +1316,20 @@ function DateField({
   );
 }
 
-function Textarea({ label, name }: { label: string; name: string }) {
+function Textarea({ label, name, defaultValue = "" }: { label: string; name: string; defaultValue?: string }) {
   return (
     <label className="block">
       <span className="mb-1 block text-sm text-muted">{label}</span>
-      <textarea name={name} rows={4} className="w-full rounded-md border border-line bg-coal px-3 py-2 text-ivory outline-none transition focus:border-gold" />
+      <textarea name={name} rows={4} defaultValue={defaultValue} className="w-full rounded-md border border-line bg-coal px-3 py-2 text-ivory outline-none transition focus:border-gold" />
     </label>
   );
 }
 
-function Select({ label, name, options }: { label: string; name: string; options: string[][] }) {
+function Select({ label, name, options, defaultValue }: { label: string; name: string; options: string[][]; defaultValue?: string }) {
   return (
     <label className="block">
       <span className="mb-1 block text-sm text-muted">{label}</span>
-      <select name={name} className="h-11 w-full rounded-md border border-line bg-coal px-3 text-ivory outline-none transition focus:border-gold">
+      <select name={name} defaultValue={defaultValue} className="h-11 w-full rounded-md border border-line bg-coal px-3 text-ivory outline-none transition focus:border-gold">
         {options.map(([value, text]) => (
           <option key={`${name}-${value}`} value={value}>
             {text}
