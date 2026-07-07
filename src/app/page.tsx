@@ -927,7 +927,7 @@ export default function Home() {
                 <Stat title="Faturado hoje" value={brl.format(metrics.today)} icon={BadgeDollarSign} />
                 <Stat title="Faturado semana" value={brl.format(metrics.week)} icon={TrendingUp} />
                 <Stat title="Faturado mês" value={brl.format(metrics.month)} icon={CreditCard} />
-                <Stat title="Cachês mês" value={brl.format(data.shows.filter((s) => inMonth(s.date)).reduce((acc, s) => acc + s.value, 0))} icon={BadgeDollarSign} />
+                <Stat title="Cachês mês" value={brl.format(showRevenue(data.shows.filter((s) => inMonth(s.date))))} icon={BadgeDollarSign} />
                 <Stat title="Atendimentos hoje" value={String(metrics.todayCount)} icon={Scissors} />
                 <Stat title="Ticket médio" value={brl.format(metrics.averageTicket)} icon={Users} />
               </div>
