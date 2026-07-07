@@ -61,6 +61,7 @@ import type {
 } from "@/lib/types";
 import { loadRemoteData, saveRemoteData } from "@/lib/database";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { getUser, signOut, onAuthStateChange } from "@/lib/auth";
 
 const sharedUserId = null;
 const databaseTimeoutMs = 12000;
@@ -315,6 +316,8 @@ export default function Home() {
   const localSaveTimerRef = useRef<number | null>(null);
   const latestDataRef = useRef(data);
   const lastSavedDataRef = useRef<AppData | undefined>(undefined);
+  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const flushSave = () => {
     const client = supabase;
@@ -435,6 +438,29 @@ export default function Home() {
     if ("caches" in window) {
       caches.keys().then((keys) => keys.forEach((key) => caches.delete(key))).catch(() => undefined);
     }
+  }, []);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const currentUser = await getUser();
+      if (!currentUser) {
+        window.location.href = "/login";
+        return;
+      }
+      setUser({ id: currentUser.id, email: currentUser.email || "" });
+      setAuthLoading(false);
+    };
+    checkUser();
+
+    const { data: { subscription } } = onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        window.location.href = "/login";
+      } else if (session?.user) {
+        setUser({ id: session.user.id, email: session.user.email || "" });
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const metrics = useMemo(() => {
@@ -759,6 +785,14 @@ export default function Home() {
     setMobileMenuOpen(false);
   };
 
+  if (authLoading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <div className="text-muted">Carregando...</div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen overflow-x-hidden">
       <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-line bg-coal/95 p-5 backdrop-blur lg:block">
@@ -801,6 +835,16 @@ export default function Home() {
               <span className="hidden rounded-md border border-line bg-panel px-3 py-2 text-xs text-muted md:inline">
                 Backup {safeBackupDate(lastBackup)}
               </span>
+              <button
+                onClick={async () => {
+                  await signOut();
+                  window.location.href = "/login";
+                }}
+                className="icon-button"
+                title="Sair"
+              >
+                Sair
+              </button>
             </div>
           </div>
           {mobileMenuOpen ? (
