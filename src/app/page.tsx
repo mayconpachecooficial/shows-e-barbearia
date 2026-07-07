@@ -864,8 +864,9 @@ export default function Home() {
     const totalIncome = totalEntries(data, () => true);
     const totalExp = totalExpenses(data, () => true);
     const totalSaved = sum(data.savings.map((s) => s.value));
-    const newOpeningBalance = desiredBalance - totalIncome + totalExp + totalSaved;
-    setData((current) => ({ ...current, openingBalance: newOpeningBalance }));
+    const currentBalance = data.openingBalance + totalIncome - totalExp - totalSaved;
+    const diff = desiredBalance - currentBalance;
+    setData((current) => ({ ...current, openingBalance: current.openingBalance + diff }));
     setEditingBalance(false);
   };
 
