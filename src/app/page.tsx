@@ -59,6 +59,7 @@ import type {
   Expense,
   Product,
   ProductSale,
+  Saving,
   ServiceRecord,
   Show,
 } from "@/lib/types";
@@ -76,7 +77,8 @@ const hasData = (items: AppData) =>
   items.products.length ||
   items.productSales.length ||
   items.appointments.length ||
-  items.shows.length;
+  items.shows.length ||
+  items.savings.length;
 
 const initialData: AppData = {
   clients: [
@@ -118,13 +120,18 @@ const initialData: AppData = {
     { id: "sh1", date: todayKey(), time: "20:00", local: "Bar do Zé", description: "Noite de pagode", value: 500, status: "Confirmado" },
     { id: "sh2", date: format(subDays(new Date(), -3), "yyyy-MM-dd"), time: "21:00", local: "Buffet Floral", description: "Festa de aniversário", value: 800, status: "Confirmado" },
   ],
+  savings: [
+    { id: "sv1", date: format(subDays(new Date(), -3), "yyyy-MM-dd"), description: "Reserva cofrinho", value: 75 },
+    { id: "sv2", date: format(subDays(new Date(), -2), "yyyy-MM-dd"), description: "Reserva cofrinho", value: 110 },
+  ],
 };
 
-type Tab = "dashboard" | "clientes" | "servicos" | "financeiro" | "relatorios" | "historico" | "produtos" | "agenda" | "shows" | "admin";
+type Tab = "dashboard" | "clientes" | "servicos" | "financeiro" | "relatorios" | "historico" | "produtos" | "agenda" | "shows" | "cofrinho" | "admin";
 
 const navItems: Array<{ key: Tab; label: string; icon: React.ElementType }> = [
   { key: "dashboard", label: "Dashboard", icon: TrendingUp },
   { key: "shows", label: "Shows", icon: BadgeDollarSign },
+  { key: "cofrinho", label: "Cofrinho", icon: Package },
   { key: "relatorios", label: "Relatórios", icon: ClipboardList },
   { key: "historico", label: "Histórico", icon: CalendarClock },
   { key: "clientes", label: "Clientes", icon: Users },
@@ -276,6 +283,15 @@ const normalizeAppData = (items: AppData): AppData => ({
       status: (["Confirmado", "Pendente", "Cancelado"].includes(String(show.status)) ? show.status : "Pendente") as Show["status"],
     }))
     .filter((show) => show.local.trim()),
+  savings: ensureArray(items.savings)
+    .filter((saving) => saving && typeof saving === "object")
+    .map((saving) => ({
+      id: String(saving.id || newId("sv")),
+      date: toInputDate(String(saving.date || ""), todayKey()),
+      description: String(saving.description || ""),
+      value: finiteNumber(saving.value),
+    }))
+    .filter((saving) => saving.value > 0),
 });
 
 const parseDecimal = (value: FormDataEntryValue | string | number | null | undefined, fallback = 0) => {
@@ -330,6 +346,7 @@ export default function Home() {
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
   const [editingBarberId, setEditingBarberId] = useState<string | null>(null);
   const [editingShowId, setEditingShowId] = useState<string | null>(null);
+  const [editingSavingId, setEditingSavingId] = useState<string | null>(null);
   const hydratedRef = useRef(false);
   const savingRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -520,6 +537,7 @@ export default function Home() {
   const editingAppointment = data.appointments.find((appointment) => appointment.id === editingAppointmentId);
   const editingBarber = selectedBarber(editingBarberId ?? undefined);
   const editingShow = data.shows.find((show) => show.id === editingShowId);
+  const editingSaving = data.savings.find((saving) => saving.id === editingSavingId);
   const clientNameById = useMemo(() => new Map(data.clients.map((client) => [client.id, client.name])), [data.clients]);
   const barberNameById = useMemo(() => new Map(data.barbers.map((barber) => [barber.id, barber.name])), [data.barbers]);
   const productProfitById = useMemo(() => {
@@ -661,6 +679,17 @@ export default function Home() {
     };
     if (!show.local.trim()) return;
     setData((current) => ({ ...current, shows: [show, ...current.shows] }));
+  };
+
+  const addSaving = (form: FormData) => {
+    const saving: Saving = {
+      id: newId("sv"),
+      date: toInputDate(String(form.get("date") || ""), todayKey()),
+      description: String(form.get("description") || ""),
+      value: parseDecimal(form.get("value")),
+    };
+    if (saving.value <= 0) return;
+    setData((current) => ({ ...current, savings: [saving, ...current.savings] }));
   };
 
   const deleteById = <K extends keyof AppData>(key: K, id: string) => {
@@ -809,6 +838,18 @@ export default function Home() {
     }));
   };
 
+  const updateSaving = (saving: Saving, form: FormData) => {
+    const date = toInputDate(String(form.get("date") || ""), saving.date);
+    const description = String(form.get("description") || "");
+    const value = parseDecimal(form.get("value"));
+    if (value <= 0) return false;
+    setData((current) => ({
+      ...current,
+      savings: current.savings.map((item) => (item.id === saving.id ? { ...item, date, description, value } : item)),
+    }));
+    setEditingSavingId(null);
+  };
+
   const updateAppointmentStatus = (id: string, status: Appointment["status"]) => {
     setData((current) => ({
       ...current,
@@ -954,6 +995,17 @@ export default function Home() {
                     <Row label="Total entradas" value={brl.format(metrics.today)} strong />
                     <Row label="Despesas" value={brl.format(metrics.todayExpenses)} />
                     <Row label="Saldo do dia" value={brl.format(metrics.today - metrics.todayExpenses)} strong />
+                  </div>
+                </Panel>
+                <Panel title="Cofrinho">
+                  <div className="space-y-3">
+                    <Row label="Total reservado" value={brl.format(sum(data.savings.map((s) => s.value)))} strong />
+                    {data.savings.slice(0, 5).map((saving) => (
+                      <div key={saving.id} className="flex items-center justify-between text-sm">
+                        <span className="text-muted">{safeDisplayDate(saving.date)} - {saving.description}</span>
+                        <span className="text-gold">{brl.format(saving.value)}</span>
+                      </div>
+                    ))}
                   </div>
                 </Panel>
               </div>
@@ -1162,6 +1214,50 @@ export default function Home() {
                             <Pencil size={17} />
                           </button>
                           <DeleteButton title="Excluir show" onConfirm={() => deleteById("shows", show.id)} />
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </Panel>
+            </div>
+          )}
+
+          {tab === "cofrinho" && (
+            <div className="grid min-w-0 gap-6 xl:grid-cols-[0.85fr_1.4fr]">
+              <Panel title="Adicionar reserva">
+                <SmartForm action={addSaving} submit="Salvar reserva">
+                  <DateField label="Data" name="date" defaultValue={todayKey()} />
+                  <Field label="Descrição" name="description" placeholder="Ex.: Reserva cofrinho" />
+                  <MoneyField label="Valor" name="value" />
+                </SmartForm>
+                {editingSaving ? (
+                  <InlineForm key={editingSaving.id} title="Editar reserva" submit="Salvar reserva" onCancel={() => setEditingSavingId(null)} action={(form) => updateSaving(editingSaving, form)}>
+                    <DateField label="Data" name="date" defaultValue={editingSaving.date} />
+                    <Field label="Descrição" name="description" defaultValue={editingSaving.description} />
+                    <MoneyField label="Valor" name="value" defaultValue={editingSaving.value} />
+                  </InlineForm>
+                ) : null}
+              </Panel>
+              <Panel title="Reservas (Cofrinho)">
+                <div className="mb-4 rounded-md border border-gold/40 bg-gold/10 px-4 py-3 text-sm">
+                  <span className="text-muted">Total reservado: </span>
+                  <span className="font-semibold text-gold">{brl.format(sum(data.savings.map((s) => s.value)))}</span>
+                </div>
+                <div className="space-y-3">
+                  {data.savings.slice(0, 20).map((saving) => (
+                    <Card key={saving.id}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold">{saving.description || "Reserva"}</p>
+                          <p className="text-sm text-muted">{safeDisplayDate(saving.date)}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gold">{brl.format(saving.value)}</span>
+                          <button onClick={() => setEditingSavingId(saving.id)} className="icon-button" title="Editar reserva">
+                            <Pencil size={17} />
+                          </button>
+                          <DeleteButton title="Excluir reserva" onConfirm={() => deleteById("savings", saving.id)} />
                         </div>
                       </div>
                     </Card>

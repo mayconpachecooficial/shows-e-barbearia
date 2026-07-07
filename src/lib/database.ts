@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AppData, Appointment, Barber, Client, Expense, Product, ProductSale, ServiceRecord, Show } from "./types";
+import type { AppData, Appointment, Barber, Client, Expense, Product, ProductSale, Saving, ServiceRecord, Show } from "./types";
 
 type Row = Record<string, string | number | boolean | null>;
 type SharedUserId = string | null;
@@ -7,7 +7,7 @@ type SupabaseResult = { data: Row[] | null; error: Error | null };
 type SupabaseMutationResult = { error: Error | null };
 
 export async function loadRemoteData(supabase: SupabaseClient, userId: SharedUserId): Promise<AppData> {
-  const [clients, barbers, services, expenses, products, productSales, appointments, shows] = await Promise.all([
+  const [clients, barbers, services, expenses, products, productSales, appointments, shows, savings] = await Promise.all([
     selectRows(supabase, "clients", userId),
     selectRows(supabase, "barbers", userId),
     selectRows(supabase, "service_records", userId),
@@ -16,9 +16,10 @@ export async function loadRemoteData(supabase: SupabaseClient, userId: SharedUse
     selectRows(supabase, "product_sales", userId),
     selectRows(supabase, "appointments", userId),
     selectRows(supabase, "shows", userId),
+    selectRows(supabase, "savings", userId),
   ]);
 
-  const error = clients.error || barbers.error || services.error || expenses.error || products.error || productSales.error || appointments.error || shows.error;
+  const error = clients.error || barbers.error || services.error || expenses.error || products.error || productSales.error || appointments.error || shows.error || savings.error;
   if (error) throw error;
 
   return {
@@ -30,6 +31,7 @@ export async function loadRemoteData(supabase: SupabaseClient, userId: SharedUse
     productSales: (productSales.data ?? []).map(toProductSale),
     appointments: (appointments.data ?? []).map(toAppointment),
     shows: (shows.data ?? []).map(toShow),
+    savings: (savings.data ?? []).map(toSaving),
   };
 }
 
@@ -100,6 +102,7 @@ function buildChanges(data: AppData, previous: AppData | undefined, userId: Shar
   const productSales = diffRows(data.productSales, previous?.productSales, (sale) => fromProductSale(sale, userId));
   const appointments = diffRows(data.appointments, previous?.appointments, (appointment) => fromAppointment(appointment, userId));
   const shows = diffRows(data.shows, previous?.shows, (show) => fromShow(show, userId));
+  const savings = diffRows(data.savings, previous?.savings, (saving) => fromSaving(saving, userId));
 
   return {
     upserts: [
@@ -111,8 +114,10 @@ function buildChanges(data: AppData, previous: AppData | undefined, userId: Shar
       { table: "product_sales", rows: productSales.upserts },
       { table: "appointments", rows: appointments.upserts },
       { table: "shows", rows: shows.upserts },
+      { table: "savings", rows: savings.upserts },
     ] satisfies CollectionChange[],
     deletions: [
+      { table: "savings", ids: savings.deletions },
       { table: "shows", ids: shows.deletions },
       { table: "appointments", ids: appointments.deletions },
       { table: "product_sales", ids: productSales.deletions },
@@ -284,5 +289,24 @@ function fromShow(show: Show, userId: SharedUserId): Row {
     description: show.description,
     value: show.value,
     status: show.status,
+  };
+}
+
+function toSaving(row: Row): Saving {
+  return {
+    id: String(row.id),
+    date: String(row.saving_date),
+    description: String(row.description ?? ""),
+    value: Number(row.value ?? 0),
+  };
+}
+
+function fromSaving(saving: Saving, userId: SharedUserId): Row {
+  return {
+    id: saving.id,
+    user_id: userId,
+    saving_date: saving.date,
+    description: saving.description,
+    value: saving.value,
   };
 }

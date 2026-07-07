@@ -72,6 +72,13 @@ export type Show = {
   status: "Confirmado" | "Pendente" | "Cancelado";
 };
 
+export type Saving = {
+  id: string;
+  date: string;
+  description: string;
+  value: number;
+};
+
 export type AppData = {
   clients: Client[];
   barbers: Barber[];
@@ -81,4 +88,5 @@ export type AppData = {
   products: Product[];
   productSales: ProductSale[];
   shows: Show[];
+  savings: Saving[];
 };
