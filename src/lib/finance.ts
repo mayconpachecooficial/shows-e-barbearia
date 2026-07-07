@@ -57,7 +57,7 @@ export function productRevenue(sales: ProductSale[]) {
 }
 
 export function showRevenue(shows: Show[]) {
-  return sum(shows.filter((show) => show.status !== "Cancelado").map((show) => show.value));
+  return sum(shows.filter((show) => show.status === "Confirmado").map((show) => show.value));
 }
 
 export function totalEntries(data: AppData, predicate: (date: string) => boolean) {
