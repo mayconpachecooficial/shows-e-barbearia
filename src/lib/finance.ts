@@ -1,5 +1,5 @@
 import { endOfMonth, endOfWeek, format, isValid, isWithinInterval, parseISO, startOfMonth, startOfWeek } from "date-fns";
-import type { AppData, Barber, Product, ProductSale, ServiceRecord } from "./types";
+import type { AppData, Barber, Product, ProductSale, ServiceRecord, Show } from "./types";
 
 export const brl = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -56,8 +56,12 @@ export function productRevenue(sales: ProductSale[]) {
   return sum(sales.map(productSaleRevenue));
 }
 
+export function showRevenue(shows: Show[]) {
+  return sum(shows.filter((show) => show.status !== "Cancelado").map((show) => show.value));
+}
+
 export function totalEntries(data: AppData, predicate: (date: string) => boolean) {
-  return serviceRevenue(data.services.filter((item) => predicate(item.date))) + productRevenue(data.productSales.filter((item) => predicate(item.date)));
+  return serviceRevenue(data.services.filter((item) => predicate(item.date))) + productRevenue(data.productSales.filter((item) => predicate(item.date))) + showRevenue(data.shows.filter((item) => predicate(item.date)));
 }
 
 export function totalExpenses(data: AppData, predicate: (date: string) => boolean) {
@@ -73,16 +77,17 @@ export function netProfit(data: AppData, predicate: (date: string) => boolean) {
   const services = data.services.filter((item) => predicate(item.date));
   const commissions = sum(data.barbers.map((barber) => barberCommission(barber, services)));
   const productProfit = sum(data.productSales.filter((item) => predicate(item.date)).map((sale) => productSaleProfit(sale, data.products)));
-  return serviceRevenue(services) + productProfit - totalExpenses(data, predicate) - commissions;
+  return serviceRevenue(services) + productProfit + showRevenue(data.shows.filter((item) => predicate(item.date))) - totalExpenses(data, predicate) - commissions;
 }
 
 export function buildRevenueChart(data: AppData) {
-  const dates = Array.from(new Set([...data.services.map((item) => item.date), ...data.productSales.map((item) => item.date)]))
+  const dates = Array.from(new Set([...data.services.map((item) => item.date), ...data.productSales.map((item) => item.date), ...data.shows.map((item) => item.date)]))
     .filter((date) => Boolean(parseValidDate(date)))
     .sort();
   return dates.slice(-14).map((date) => ({
     date: format(parseISO(date), "dd/MM"),
     servicos: serviceRevenue(data.services.filter((item) => item.date === date)),
     produtos: productRevenue(data.productSales.filter((item) => item.date === date)),
+    shows: showRevenue(data.shows.filter((item) => item.date === date)),
   }));
 }

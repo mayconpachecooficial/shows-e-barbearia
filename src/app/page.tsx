@@ -44,6 +44,7 @@ import {
   productSaleProfit,
   productSaleRevenue,
   serviceRevenue,
+  showRevenue,
   sum,
   todayKey,
   totalEntries,
@@ -825,6 +826,7 @@ export default function Home() {
       `Receita diária: ${brl.format(metrics.today)}`,
       `Receita semanal: ${brl.format(metrics.week)}`,
       `Receita mensal: ${brl.format(metrics.month)}`,
+      `Cachês do mês: ${brl.format(showRevenue(data.shows.filter((s) => inMonth(s.date))))}`,
       `Despesas diárias: ${brl.format(metrics.todayExpenses)}`,
       `Despesas semanais: ${brl.format(metrics.weekExpenses)}`,
       `Despesas mensais: ${brl.format(metrics.monthExpenses)}`,
@@ -940,6 +942,7 @@ export default function Home() {
                         <Tooltip contentStyle={{ background: "#171717", border: "1px solid #2a2a2a", borderRadius: 8 }} />
                         <Area type="monotone" dataKey="servicos" stackId="1" stroke="#d8a63f" fill="#d8a63f" fillOpacity={0.42} />
                         <Area type="monotone" dataKey="produtos" stackId="1" stroke="#f8f5ed" fill="#f8f5ed" fillOpacity={0.16} />
+                        <Area type="monotone" dataKey="shows" stackId="1" stroke="#22c55e" fill="#22c55e" fillOpacity={0.3} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -949,6 +952,7 @@ export default function Home() {
                     <Row label="Hoje" value={brl.format(metrics.todayProfit)} />
                     <Row label="Semana" value={brl.format(metrics.weekProfit)} />
                     <Row label="Mês" value={brl.format(metrics.monthProfit)} strong />
+                    <Row label="Cachês do mês" value={brl.format(showRevenue(data.shows.filter((s) => inMonth(s.date))))} />
                     <Row label="Despesas do mês" value={brl.format(metrics.monthExpenses)} />
                   </div>
                 </Panel>
@@ -1174,9 +1178,11 @@ export default function Home() {
                   <MiniMetric label="Receita diária" value={brl.format(metrics.today)} />
                   <MiniMetric label="Receita semanal" value={brl.format(metrics.week)} />
                   <MiniMetric label="Receita mensal" value={brl.format(metrics.month)} />
+                  <MiniMetric label="Cachês do mês" value={brl.format(showRevenue(data.shows.filter((s) => inMonth(s.date))))} />
                   <MiniMetric label="Lucro líquido" value={brl.format(metrics.monthProfit)} />
                   <MiniMetric label="Total entradas" value={brl.format(totalEntries(data, () => true))} />
                   <MiniMetric label="Total saídas" value={brl.format(totalExpenses(data, () => true))} />
+                  <MiniMetric label="Total cachês" value={brl.format(showRevenue(data.shows))} />
                 </div>
               </Panel>
               <Panel title="Ranking de barbeiros">
@@ -1207,19 +1213,50 @@ export default function Home() {
                 <MiniMetric label="Saídas do dia" value={brl.format(totalExpenses(data, (date) => date === selectedDate))} />
                 <MiniMetric label="Lucro do dia" value={brl.format(netProfit(data, (date) => date === selectedDate))} />
               </div>
-              <SearchBox query={query} setQuery={setQuery} placeholder="Buscar cliente no histórico" />
+              <SearchBox query={query} setQuery={setQuery} placeholder="Buscar no histórico" />
               <div className="mt-5">
                 <DataTable
-                  rows={data.services
-                    .filter((item) => item.date >= range.start && item.date <= range.end)
-                    .filter((item) => (selectedClient(item.clientId)?.name ?? "").toLowerCase().includes(query.toLowerCase()))
-                    .map((item) => ({
-                      Data: safeDisplayDate(item.date),
-                      Cliente: selectedClient(item.clientId)?.name ?? "-",
-                      Barbeiro: selectedBarber(item.barberId)?.name ?? "-",
-                      Serviço: item.service,
-                      Valor: brl.format(item.value),
-                    }))}
+                  rows={[
+                    ...data.services
+                      .filter((item) => item.date >= range.start && item.date <= range.end)
+                      .filter((item) => (selectedClient(item.clientId)?.name ?? "").toLowerCase().includes(query.toLowerCase()))
+                      .map((item) => ({
+                        Data: safeDisplayDate(item.date),
+                        Tipo: "Serviço",
+                        Cliente: selectedClient(item.clientId)?.name ?? "-",
+                        Descrição: item.service,
+                        Valor: brl.format(item.value),
+                      })),
+                    ...data.shows
+                      .filter((item) => item.date >= range.start && item.date <= range.end)
+                      .filter((item) => item.local.toLowerCase().includes(query.toLowerCase()) || item.description.toLowerCase().includes(query.toLowerCase()))
+                      .map((item) => ({
+                        Data: safeDisplayDate(item.date),
+                        Tipo: "Show",
+                        Cliente: item.local,
+                        Descrição: `${item.description} (${item.status})`,
+                        Valor: brl.format(item.value),
+                      })),
+                    ...data.expenses
+                      .filter((item) => item.date >= range.start && item.date <= range.end)
+                      .filter((item) => item.category.toLowerCase().includes(query.toLowerCase()) || item.description.toLowerCase().includes(query.toLowerCase()))
+                      .map((item) => ({
+                        Data: safeDisplayDate(item.date),
+                        Tipo: "Despesa",
+                        Cliente: item.category,
+                        Descrição: item.description,
+                        Valor: brl.format(item.value),
+                      })),
+                    ...data.productSales
+                      .filter((item) => item.date >= range.start && item.date <= range.end)
+                      .map((item) => ({
+                        Data: safeDisplayDate(item.date),
+                        Tipo: "Produto",
+                        Cliente: selectedClient(item.clientId)?.name ?? "-",
+                        Descrição: `Venda de produto`,
+                        Valor: brl.format(item.unitPrice * item.quantity),
+                      })),
+                  ].sort((a, b) => b.Data.localeCompare(a.Data))}
                 />
               </div>
             </Panel>
