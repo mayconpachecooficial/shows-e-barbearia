@@ -78,6 +78,18 @@ create table public.appointments (
   created_at timestamptz not null default now()
 );
 
+create table public.shows (
+  id text primary key,
+  user_id uuid references auth.users(id) on delete cascade,
+  show_date date not null,
+  show_time time not null,
+  local text not null,
+  description text default '',
+  value numeric(12,2) not null default 0,
+  status text not null default 'Pendente',
+  created_at timestamptz not null default now()
+);
+
 alter table public.clients enable row level security;
 alter table public.barbers enable row level security;
 alter table public.service_records enable row level security;
@@ -85,6 +97,7 @@ alter table public.expenses enable row level security;
 alter table public.products enable row level security;
 alter table public.product_sales enable row level security;
 alter table public.appointments enable row level security;
+alter table public.shows enable row level security;
 
 create policy "Users manage own clients" on public.clients for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "Users manage own barbers" on public.barbers for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
@@ -93,6 +106,7 @@ create policy "Users manage own expenses" on public.expenses for all using (auth
 create policy "Users manage own products" on public.products for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "Users manage own product sales" on public.product_sales for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "Users manage own appointments" on public.appointments for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Users manage own shows" on public.shows for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create policy "Public shared clients" on public.clients for all to anon using (user_id is null) with check (user_id is null);
 create policy "Public shared barbers" on public.barbers for all to anon using (user_id is null) with check (user_id is null);
@@ -101,3 +115,4 @@ create policy "Public shared expenses" on public.expenses for all to anon using 
 create policy "Public shared products" on public.products for all to anon using (user_id is null) with check (user_id is null);
 create policy "Public shared product sales" on public.product_sales for all to anon using (user_id is null) with check (user_id is null);
 create policy "Public shared appointments" on public.appointments for all to anon using (user_id is null) with check (user_id is null);
+create policy "Public shared shows" on public.shows for all to anon using (user_id is null) with check (user_id is null);

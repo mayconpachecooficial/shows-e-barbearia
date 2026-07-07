@@ -58,6 +58,7 @@ import type {
   Product,
   ProductSale,
   ServiceRecord,
+  Show,
 } from "@/lib/types";
 import { loadRemoteData, saveRemoteData } from "@/lib/database";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
@@ -72,7 +73,8 @@ const hasData = (items: AppData) =>
   items.expenses.length ||
   items.products.length ||
   items.productSales.length ||
-  items.appointments.length;
+  items.appointments.length ||
+  items.shows.length;
 
 const initialData: AppData = {
   clients: [
@@ -110,12 +112,17 @@ const initialData: AppData = {
     { id: "a1", clientId: "c3", barberId: "b1", date: todayKey(), time: "15:30", service: "Corte de cabelo", status: "Confirmado" },
     { id: "a2", clientId: "c1", barberId: "b2", date: format(subDays(new Date(), -1), "yyyy-MM-dd"), time: "10:00", service: "Corte + barba", status: "Pendente" },
   ],
+  shows: [
+    { id: "sh1", date: todayKey(), time: "20:00", local: "Bar do Zé", description: "Noite de pagode", value: 500, status: "Confirmado" },
+    { id: "sh2", date: format(subDays(new Date(), -3), "yyyy-MM-dd"), time: "21:00", local: "Buffet Floral", description: "Festa de aniversário", value: 800, status: "Confirmado" },
+  ],
 };
 
-type Tab = "dashboard" | "clientes" | "servicos" | "financeiro" | "relatorios" | "historico" | "produtos" | "agenda" | "admin";
+type Tab = "dashboard" | "clientes" | "servicos" | "financeiro" | "relatorios" | "historico" | "produtos" | "agenda" | "shows" | "admin";
 
 const navItems: Array<{ key: Tab; label: string; icon: React.ElementType }> = [
   { key: "dashboard", label: "Dashboard", icon: TrendingUp },
+  { key: "shows", label: "Shows", icon: BadgeDollarSign },
   { key: "relatorios", label: "Relatórios", icon: ClipboardList },
   { key: "historico", label: "Histórico", icon: CalendarClock },
   { key: "clientes", label: "Clientes", icon: Users },
@@ -255,6 +262,18 @@ const normalizeAppData = (items: AppData): AppData => ({
       status: (["Confirmado", "Pendente", "Cancelado"].includes(String(appointment.status)) ? appointment.status : "Pendente") as Appointment["status"],
     }))
     .filter((appointment) => appointment.service.trim()),
+  shows: ensureArray(items.shows)
+    .filter((show) => show && typeof show === "object")
+    .map((show) => ({
+      id: String(show.id || newId("sh")),
+      date: toInputDate(String(show.date || ""), todayKey()),
+      time: String(show.time || "20:00").slice(0, 5),
+      local: String(show.local || ""),
+      description: String(show.description || ""),
+      value: finiteNumber(show.value),
+      status: (["Confirmado", "Pendente", "Cancelado"].includes(String(show.status)) ? show.status : "Pendente") as Show["status"],
+    }))
+    .filter((show) => show.local.trim()),
 });
 
 const parseDecimal = (value: FormDataEntryValue | string | number | null | undefined, fallback = 0) => {
@@ -308,6 +327,7 @@ export default function Home() {
   const [stockProductId, setStockProductId] = useState<string | null>(null);
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
   const [editingBarberId, setEditingBarberId] = useState<string | null>(null);
+  const [editingShowId, setEditingShowId] = useState<string | null>(null);
   const hydratedRef = useRef(false);
   const savingRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -497,6 +517,7 @@ export default function Home() {
   const stockProduct = selectedProduct(stockProductId ?? undefined);
   const editingAppointment = data.appointments.find((appointment) => appointment.id === editingAppointmentId);
   const editingBarber = selectedBarber(editingBarberId ?? undefined);
+  const editingShow = data.shows.find((show) => show.id === editingShowId);
   const clientNameById = useMemo(() => new Map(data.clients.map((client) => [client.id, client.name])), [data.clients]);
   const barberNameById = useMemo(() => new Map(data.barbers.map((barber) => [barber.id, barber.name])), [data.barbers]);
   const productProfitById = useMemo(() => {
@@ -626,6 +647,20 @@ export default function Home() {
     setData((current) => ({ ...current, barbers: [barber, ...current.barbers] }));
   };
 
+  const addShow = (form: FormData) => {
+    const show: Show = {
+      id: newId("sh"),
+      date: toInputDate(String(form.get("date") || ""), todayKey()),
+      time: String(form.get("time") || "20:00"),
+      local: String(form.get("local") || ""),
+      description: String(form.get("description") || ""),
+      value: parseDecimal(form.get("value")),
+      status: "Pendente",
+    };
+    if (!show.local.trim()) return;
+    setData((current) => ({ ...current, shows: [show, ...current.shows] }));
+  };
+
   const deleteById = <K extends keyof AppData>(key: K, id: string) => {
     setData((current) => ({
       ...current,
@@ -751,6 +786,27 @@ export default function Home() {
     setEditingBarberId(null);
   };
 
+  const updateShow = (show: Show, form: FormData) => {
+    const date = toInputDate(String(form.get("date") || ""), show.date);
+    const time = String(form.get("time") || show.time);
+    const local = String(form.get("local") || "");
+    const description = String(form.get("description") || "");
+    const value = parseDecimal(form.get("value"));
+    if (!local.trim()) return false;
+    setData((current) => ({
+      ...current,
+      shows: current.shows.map((item) => (item.id === show.id ? { ...item, date, time, local, description, value } : item)),
+    }));
+    setEditingShowId(null);
+  };
+
+  const updateShowStatus = (id: string, status: Show["status"]) => {
+    setData((current) => ({
+      ...current,
+      shows: current.shows.map((show) => (show.id === id ? { ...show, status } : show)),
+    }));
+  };
+
   const updateAppointmentStatus = (id: string, status: Appointment["status"]) => {
     setData((current) => ({
       ...current,
@@ -762,7 +818,7 @@ export default function Home() {
     const { jsPDF } = await import("jspdf");
     const doc = new jsPDF();
     doc.setFontSize(18);
-    doc.text("Relatório BRAVOS BARBEARIA", 14, 18);
+    doc.text("Relatório SHOWS E BARBEARIA", 14, 18);
     doc.setFontSize(11);
     doc.text(`Gerado em ${format(new Date(), "dd-MM-yyyy HH:mm")}`, 14, 28);
     const lines = [
@@ -801,7 +857,7 @@ export default function Home() {
             <Scissors size={24} />
           </div>
           <div>
-            <h1 className="text-xl font-semibold">BRAVOS BARBEARIA</h1>
+            <h1 className="text-xl font-semibold">SHOWS E BARBEARIA</h1>
             <p className="text-xs text-muted">{syncStatus}</p>
           </div>
         </div>
@@ -865,10 +921,11 @@ export default function Home() {
           ) : null}
           {tab === "dashboard" && (
             <>
-              <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-6">
                 <Stat title="Faturado hoje" value={brl.format(metrics.today)} icon={BadgeDollarSign} />
                 <Stat title="Faturado semana" value={brl.format(metrics.week)} icon={TrendingUp} />
                 <Stat title="Faturado mês" value={brl.format(metrics.month)} icon={CreditCard} />
+                <Stat title="Cachês mês" value={brl.format(data.shows.filter((s) => inMonth(s.date)).reduce((acc, s) => acc + s.value, 0))} icon={BadgeDollarSign} />
                 <Stat title="Atendimentos hoje" value={String(metrics.todayCount)} icon={Scissors} />
                 <Stat title="Ticket médio" value={brl.format(metrics.averageTicket)} icon={Users} />
               </div>
@@ -1035,6 +1092,72 @@ export default function Home() {
                             <Pencil size={17} />
                           </button>
                           <DeleteButton title="Excluir despesa" onConfirm={() => deleteById("expenses", expense.id)} />
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </Panel>
+            </div>
+          )}
+
+          {tab === "shows" && (
+            <div className="grid min-w-0 gap-6 xl:grid-cols-[0.85fr_1.4fr]">
+              <Panel title="Cadastrar show">
+                <SmartForm action={addShow} submit="Salvar show">
+                  <DateField label="Data" name="date" defaultValue={todayKey()} />
+                  <Field label="Horário" name="time" defaultValue="20:00" />
+                  <Field label="Local" name="local" placeholder="Ex.: Bar do Zé, Buffet Floral" />
+                  <Field label="Descrição" name="description" placeholder="Ex.: Noite de pagode, Festa" />
+                  <MoneyField label="Cachê" name="value" />
+                </SmartForm>
+                {editingShow ? (
+                  <InlineForm key={editingShow.id} title="Editar show" submit="Salvar show" onCancel={() => setEditingShowId(null)} action={(form) => updateShow(editingShow, form)}>
+                    <DateField label="Data" name="date" defaultValue={editingShow.date} />
+                    <Field label="Horário" name="time" defaultValue={editingShow.time} />
+                    <Field label="Local" name="local" defaultValue={editingShow.local} />
+                    <Field label="Descrição" name="description" defaultValue={editingShow.description} />
+                    <MoneyField label="Cachê" name="value" defaultValue={editingShow.value} />
+                  </InlineForm>
+                ) : null}
+              </Panel>
+              <Panel title="Shows e cachês">
+                <div className="space-y-3">
+                  {data.shows.slice(0, 20).map((show) => (
+                    <Card key={show.id}>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="font-semibold">{show.local}</p>
+                          <p className="text-sm text-muted">
+                            {safeDisplayDate(show.date)} • {show.time} • {show.description}
+                          </p>
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              onClick={() => updateShowStatus(show.id, "Confirmado")}
+                              className={`text-xs px-2 py-1 rounded ${show.status === "Confirmado" ? "bg-green-500/20 text-green-400" : "text-muted hover:text-green-400"}`}
+                            >
+                              Confirmado
+                            </button>
+                            <button
+                              onClick={() => updateShowStatus(show.id, "Pendente")}
+                              className={`text-xs px-2 py-1 rounded ${show.status === "Pendente" ? "bg-yellow-500/20 text-yellow-400" : "text-muted hover:text-yellow-400"}`}
+                            >
+                              Pendente
+                            </button>
+                            <button
+                              onClick={() => updateShowStatus(show.id, "Cancelado")}
+                              className={`text-xs px-2 py-1 rounded ${show.status === "Cancelado" ? "bg-red-500/20 text-red-400" : "text-muted hover:text-red-400"}`}
+                            >
+                              Cancelado
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gold">{brl.format(show.value)}</span>
+                          <button onClick={() => setEditingShowId(show.id)} className="icon-button" title="Editar show">
+                            <Pencil size={17} />
+                          </button>
+                          <DeleteButton title="Excluir show" onConfirm={() => deleteById("shows", show.id)} />
                         </div>
                       </div>
                     </Card>

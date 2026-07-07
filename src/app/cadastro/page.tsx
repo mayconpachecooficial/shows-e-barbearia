@@ -50,7 +50,7 @@ export default function CadastroPage() {
           <div className="inline-flex size-14 items-center justify-center rounded-lg border border-gold/50 bg-gold/10 text-gold mb-4">
             <Scissors size={28} />
           </div>
-          <h1 className="text-2xl font-semibold">BRAVOS BARBEARIA</h1>
+          <h1 className="text-2xl font-semibold">SHOWS E BARBEARIA</h1>
           <p className="text-sm text-muted mt-1">Crie sua conta</p>
         </div>
 

@@ -19,7 +19,7 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
   return (
     <main className="grid min-h-screen place-items-center bg-coal px-4 text-ivory">
       <section className="w-full max-w-lg rounded-lg border border-line bg-panel p-6 shadow-[0_18px_60px_rgba(0,0,0,0.35)]">
-        <p className="text-sm font-semibold text-gold">BRAVOS BARBEARIA</p>
+        <p className="text-sm font-semibold text-gold">SHOWS E BARBEARIA</p>
         <h1 className="mt-2 text-2xl font-semibold">Não foi possível carregar</h1>
         <p className="mt-3 text-sm text-muted">
           Tente recarregar. Se continuar, limpe os dados locais para buscar novamente as informações do banco.

@@ -62,6 +62,16 @@ export type ProductSale = {
   unitPrice: number;
 };
 
+export type Show = {
+  id: string;
+  date: string;
+  time: string;
+  local: string;
+  description: string;
+  value: number;
+  status: "Confirmado" | "Pendente" | "Cancelado";
+};
+
 export type AppData = {
   clients: Client[];
   barbers: Barber[];
@@ -70,4 +80,5 @@ export type AppData = {
   expenses: Expense[];
   products: Product[];
   productSales: ProductSale[];
+  shows: Show[];
 };
