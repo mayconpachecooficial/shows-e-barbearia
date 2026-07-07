@@ -80,6 +80,7 @@ export type Saving = {
 };
 
 export type AppData = {
+  openingBalance: number;
   clients: Client[];
   barbers: Barber[];
   appointments: Appointment[];

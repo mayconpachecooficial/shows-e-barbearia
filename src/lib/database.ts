@@ -23,6 +23,7 @@ export async function loadRemoteData(supabase: SupabaseClient, userId: SharedUse
   if (error) throw error;
 
   return {
+    openingBalance: 0,
     clients: (clients.data ?? []).map(toClient),
     barbers: (barbers.data ?? []).map(toBarber),
     services: (services.data ?? []).map(toServiceRecord),

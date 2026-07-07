@@ -81,6 +81,7 @@ const hasData = (items: AppData) =>
   items.savings.length;
 
 const initialData: AppData = {
+  openingBalance: 82.71,
   clients: [
     { id: "c1", name: "Rafael Almeida", phone: "(67) 99211-4400", birthDate: "1994-04-18", notes: "Prefere degradê baixo e finalização matte." },
     { id: "c2", name: "Bruno Martins", phone: "(67) 98422-1190", birthDate: "1988-11-02", notes: "Barba desenhada quinzenal." },
@@ -193,6 +194,7 @@ const finiteNumber = (value: unknown, fallback = 0) => {
 const ensureArray = <T,>(value: T[] | undefined) => (Array.isArray(value) ? value : []);
 
 const normalizeAppData = (items: AppData): AppData => ({
+  openingBalance: finiteNumber(items.openingBalance),
   clients: ensureArray(items.clients)
     .filter((client) => client && typeof client === "object")
     .map((client) => ({
@@ -347,6 +349,7 @@ export default function Home() {
   const [editingBarberId, setEditingBarberId] = useState<string | null>(null);
   const [editingShowId, setEditingShowId] = useState<string | null>(null);
   const [editingSavingId, setEditingSavingId] = useState<string | null>(null);
+  const [editingBalance, setEditingBalance] = useState(false);
   const hydratedRef = useRef(false);
   const savingRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -857,6 +860,11 @@ export default function Home() {
     }));
   };
 
+  const updateOpeningBalance = (value: number) => {
+    setData((current) => ({ ...current, openingBalance: value }));
+    setEditingBalance(false);
+  };
+
   const exportPdf = async () => {
     const { jsPDF } = await import("jspdf");
     const doc = new jsPDF();
@@ -966,7 +974,29 @@ export default function Home() {
           {tab === "dashboard" && (
             <>
               <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <Stat title="Saldo do dia" value={brl.format(metrics.today - metrics.todayExpenses)} icon={BadgeDollarSign} />
+                <div className="rounded-lg border border-line bg-panel p-4">
+                  <p className="text-xs text-muted">Saldo em conta</p>
+                  {editingBalance ? (
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="number"
+                        defaultValue={data.openingBalance}
+                        onBlur={(e) => updateOpeningBalance(parseDecimal(e.target.value))}
+                        className="w-full rounded-md border border-gold bg-coal px-3 py-2 text-lg font-bold text-gold focus:outline-none"
+                        autoFocus
+                      />
+                    </div>
+                  ) : (
+                    <p
+                      onClick={() => setEditingBalance(true)}
+                      className="mt-1 cursor-pointer text-lg font-bold text-gold hover:text-gold/80"
+                      title="Clique para editar"
+                    >
+                      {brl.format(data.openingBalance)}
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-muted">Clique para editar</p>
+                </div>
                 <Stat title="Faturado mês" value={brl.format(metrics.month)} icon={CreditCard} />
                 <Stat title="Cachês mês" value={brl.format(showRevenue(data.shows.filter((s) => inMonth(s.date))))} icon={BadgeDollarSign} />
                 <Stat title="Lucro líquido mês" value={brl.format(metrics.monthProfit)} icon={TrendingUp} />
